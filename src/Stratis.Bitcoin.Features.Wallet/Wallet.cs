@@ -309,21 +309,18 @@ namespace Stratis.Bitcoin.Features.Wallet
         public HdAddress FindHDAddressByExternalAddress(CoinType coinType, string externalAddress, Func<HdAccount, bool> accountFilter = null)
         {
             Guard.NotNull(externalAddress, nameof(externalAddress));
-
-            HdAccount account = this.GetAccountsByCoinType(coinType, accountFilter).FirstOrDefault(x => x.ExternalAddresses.Select(a => a.Address).Contains(externalAddress));
-
-            HdAddress hDaddress = account.ExternalAddresses.FirstOrDefault(x => x.Address.Contains(externalAddress));
-
+            
+            HdAddress hdAddress = this.GetAllAddressesByCoinType(coinType, accountFilter).FirstOrDefault(a => a.Address == externalAddress);
+            
             // Check if the wallet contains the address.
-            if (hDaddress == null)
+            if (hdAddress == null)
             {
                 throw new WalletException("Address not found on wallet.");
             }
 
-            return hDaddress;
+            return hdAddress;
         }
-
-
+        
         /// <summary>
         /// Calculates the fee paid by the user on a transaction sent.
         /// </summary>

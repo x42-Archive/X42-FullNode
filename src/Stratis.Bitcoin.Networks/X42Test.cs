@@ -17,11 +17,11 @@ namespace Stratis.Bitcoin.Networks
             // The characters are rarely used upper ASCII, not valid as UTF-8, and produce
             // a large 4-byte int at any alignment.
             var messageStart = new byte[4];
-            messageStart[0] = 0x71;
-            messageStart[1] = 0x31;
-            messageStart[2] = 0x21;
-            messageStart[3] = 0x11;
-            uint magic = BitConverter.ToUInt32(messageStart, 0); //0x5223570; 
+            messageStart[0] = 0x42;
+            messageStart[1] = 0x66;
+            messageStart[2] = 0x52;
+            messageStart[3] = 0x04;
+            uint magic = BitConverter.ToUInt32(messageStart, 0); //0x4526642
 
             this.Name = "x42Test";
             this.Magic = magic;

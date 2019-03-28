@@ -43,7 +43,7 @@ namespace Stratis.Bitcoin.Networks
             var consensusFactory = new PosConsensusFactory();
 
             // Create the testnet genesis block.
-            this.GenesisTime = 1547913523;
+            this.GenesisTime = 1553816392;
             this.GenesisNonce = 2433759;
             this.GenesisBits = powLimit;
             this.GenesisVersion = 1;
@@ -107,9 +107,9 @@ namespace Stratis.Bitcoin.Networks
                 lastPowBlock: 523,
                 proofOfStakeLimitV2: new BigInteger(uint256.Parse("000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff").ToBytes(false)),
                 proofOfStakeReward: Money.Coins(20),
-                subsidyLimit: 1000,
+                subsidyLimit: 100000,
                 proofOfStakeRewardAfterSubsidyLimit: Money.Coins(5),
-                lastProofOfStakeRewardHeight: 3000
+                lastProofOfStakeRewardHeight: 1000000
             );
 
             this.Base58Prefixes[(int)Base58Type.PUBKEY_ADDRESS] = new byte[] { (65) };
@@ -118,7 +118,7 @@ namespace Stratis.Bitcoin.Networks
 
             this.Checkpoints = new Dictionary<int, CheckpointInfo>
             {
-                { 0, new CheckpointInfo(new uint256("0x8f4fd479064ac44e1ca633754cc0de1bdc5b0d61562722e29beb32daf9bd8ce9"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
+                { 0, new CheckpointInfo(new uint256("0xab1b9fd8791f3630b13db6e0669ace297fb9b594908016c9b67a4373d482bfae"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
             };
 
             var encoder = new Bech32Encoder("bc");
@@ -136,8 +136,8 @@ namespace Stratis.Bitcoin.Networks
 
             this.StandardScriptsRegistry = new StratisStandardScriptsRegistry();
 
-            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x8f4fd479064ac44e1ca633754cc0de1bdc5b0d61562722e29beb32daf9bd8ce9"));
-            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x288d7d5bbd1fb96f3550c2cc6a127fe382b6d967694a352b06c5101412b14d09"));
+            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0xab1b9fd8791f3630b13db6e0669ace297fb9b594908016c9b67a4373d482bfae"));
+            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x0ed08ed7b85e680613f82f5f76a200e463690c9a96266ca18f5056810d02d45c"));
         }
     }
 }

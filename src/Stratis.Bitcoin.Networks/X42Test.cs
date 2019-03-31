@@ -43,7 +43,7 @@ namespace Stratis.Bitcoin.Networks
             var consensusFactory = new PosConsensusFactory();
 
             // Create the testnet genesis block.
-            this.GenesisTime = 1553816392;
+            this.GenesisTime = 1554001068;
             this.GenesisNonce = 2433759;
             this.GenesisBits = powLimit;
             this.GenesisVersion = 1;

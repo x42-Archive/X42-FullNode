@@ -118,7 +118,7 @@ namespace Stratis.Bitcoin.Networks
 
             this.Checkpoints = new Dictionary<int, CheckpointInfo>
             {
-                { 0, new CheckpointInfo(new uint256("0xab1b9fd8791f3630b13db6e0669ace297fb9b594908016c9b67a4373d482bfae"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
+                { 0, new CheckpointInfo(new uint256("0x6e7c625f36755963d0704dda57fce762c9baf29ea53d7c699e132da614e18d28"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
             };
 
             var encoder = new Bech32Encoder("bc");
@@ -136,8 +136,8 @@ namespace Stratis.Bitcoin.Networks
 
             this.StandardScriptsRegistry = new StratisStandardScriptsRegistry();
 
-            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0xab1b9fd8791f3630b13db6e0669ace297fb9b594908016c9b67a4373d482bfae"));
-            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x0ed08ed7b85e680613f82f5f76a200e463690c9a96266ca18f5056810d02d45c"));
+            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x6e7c625f36755963d0704dda57fce762c9baf29ea53d7c699e132da614e18d28"));
+            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x7a466c6b14e6b6fbb9003a1eaa03b431a1b88ebde7796cb6c819e6436337b565"));
         }
     }
 }

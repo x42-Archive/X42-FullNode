@@ -68,7 +68,7 @@ namespace Stratis.Bitcoin.Features.Api
             // Register the Swagger generator, defining one or more Swagger documents
             services.AddSwaggerGen(setup =>
             {
-                setup.SwaggerDoc("v1", new Info { Title = "Stratis.Bitcoin.Api", Version = "v1" });
+                setup.SwaggerDoc("v1", new Info { Title = "x42.FullNode.Api", Version = "v1" });
 
                 //Set the comments path for the swagger json and ui.
                 string basePath = PlatformServices.Default.Application.ApplicationBasePath;

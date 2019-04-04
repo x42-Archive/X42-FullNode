@@ -94,7 +94,7 @@ So you have 4 options:
 
 1. To run a <b>x42</b> node on <b>MainNet</b>, do
 ```
-cd x42.
+cd src\x42.x42D
 dotnet run
 ```  
 

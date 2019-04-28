@@ -431,6 +431,7 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
 
             try
             {
+               
                 var model = new WalletHistoryModel();
 
                 // Get a list of all the transactions found in an account (or in a wallet if no account is specified), with the addresses associated with them.
@@ -600,6 +601,190 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets the full history of a wallet. This includes the transactions held by the entire wallet
+        /// or a single account if one is specified. 
+        /// </summary>
+        /// <param name="request">An object containing the parameters used to retrieve a wallet's full history.</param>
+        /// <returns>A JSON object containing the full wallet history.</returns>
+        [Route("fullhistory")]
+        [HttpGet]
+           public IActionResult GetFullHistory([FromQuery] WalletHistoryRequest request)
+        {
+            Guard.NotNull(request, nameof(request));
+
+            if (!this.ModelState.IsValid)
+            {
+                return ModelStateErrors.BuildErrorResponse(this.ModelState);
+            }
+
+            try
+            {
+               
+                var model = new WalletHistoryModel();
+
+                // Get a list of all the transactions found in an account (or in a wallet if no account is specified), with the addresses associated with them.
+                IEnumerable<AccountHistory> accountsHistory = this.walletManager.GetHistory(request.WalletName, request.AccountName);
+
+                foreach (AccountHistory accountHistory in accountsHistory)
+                {
+                    var transactionItems = new List<TransactionItemModel>();
+
+                    // Sorting the history items by descending dates. That includes received and sent dates.
+                    List<FlatHistory> items = accountHistory.History.OrderByDescending(o => o.Transaction.SpendingDetails?.CreationTime ?? o.Transaction.CreationTime).ToList();
+
+                    // Represents a sublist containing only the transactions that have already been spent.
+                    List<FlatHistory> spendingDetails = items.Where(t => t.Transaction.SpendingDetails != null).ToList();
+
+                    // Represents a sublist of transactions associated with receive addresses + a sublist of already spent transactions associated with change addresses.
+                    // In effect, we filter out 'change' transactions that are not spent, as we don't want to show these in the history.
+                    List<FlatHistory> history = items.Where(t => !t.Address.IsChangeAddress() || (t.Address.IsChangeAddress() && t.Transaction.IsSpent())).ToList();
+
+                    // Represents a sublist of 'change' transactions.
+                    List<FlatHistory> allchange = items.Where(t => t.Address.IsChangeAddress()).ToList();
+
+                    int itemsCount = 0;
+                    foreach (FlatHistory item in history)
+                    {
+
+                        TransactionData transaction = item.Transaction;
+                        HdAddress address = item.Address;
+
+                        // First we look for staking transaction as they require special attention.
+                        // A staking transaction spends one of our inputs into 2 outputs or more, paid to the same address.
+                        if (transaction.SpendingDetails?.IsCoinStake != null && transaction.SpendingDetails.IsCoinStake.Value)
+                        {
+                            // We look for the output(s) related to our spending input.
+                            List<FlatHistory> relatedOutputs = items.Where(h => h.Transaction.Id == transaction.SpendingDetails.TransactionId && h.Transaction.IsCoinStake != null && h.Transaction.IsCoinStake.Value).ToList();
+                            if (relatedOutputs.Any())
+                            {
+                                // Add staking transaction details.
+                                // The staked amount is calculated as the difference between the sum of the outputs and the input and should normally be equal to 1.
+                                var stakingItem = new TransactionItemModel
+                                {
+                                    Type = TransactionItemType.Staked,
+                                    ToAddress = address.Address,
+                                    Amount = relatedOutputs.Sum(o => o.Transaction.Amount) - transaction.Amount,
+                                    Id = transaction.SpendingDetails.TransactionId,
+                                    Timestamp = transaction.SpendingDetails.CreationTime,
+                                    ConfirmedInBlock = transaction.SpendingDetails.BlockHeight,
+                                    BlockIndex = transaction.SpendingDetails.BlockIndex
+                                };
+
+                                transactionItems.Add(stakingItem);
+                                itemsCount++;
+                            }
+
+                            // No need for further processing if the transaction itself is the output of a staking transaction.
+                            if (transaction.IsCoinStake != null)
+                            {
+                                continue;
+                            }
+                        }
+
+                        // If this is a normal transaction (not staking) that has been spent, add outgoing fund transaction details.
+                        if (transaction.SpendingDetails != null && transaction.SpendingDetails.IsCoinStake == null)
+                        {
+                            // Create a record for a 'send' transaction.
+                            uint256 spendingTransactionId = transaction.SpendingDetails.TransactionId;
+                            var sentItem = new TransactionItemModel
+                            {
+                                Type = TransactionItemType.Send,
+                                Id = spendingTransactionId,
+                                Timestamp = transaction.SpendingDetails.CreationTime,
+                                ConfirmedInBlock = transaction.SpendingDetails.BlockHeight,
+                                BlockIndex = transaction.SpendingDetails.BlockIndex,
+                                Amount = Money.Zero
+                            };
+
+                            // If this 'send' transaction has made some external payments, i.e the funds were not sent to another address in the wallet.
+                            if (transaction.SpendingDetails.Payments != null)
+                            {
+                                sentItem.Payments = new List<PaymentDetailModel>();
+                                foreach (PaymentDetails payment in transaction.SpendingDetails.Payments)
+                                {
+                                    sentItem.Payments.Add(new PaymentDetailModel
+                                    {
+                                        DestinationAddress = payment.DestinationAddress,
+                                        Amount = payment.Amount
+                                    });
+
+                                    sentItem.Amount += payment.Amount;
+                                }
+                            }
+
+                            // Get the change address for this spending transaction.
+                            FlatHistory changeAddress = allchange.FirstOrDefault(a => a.Transaction.Id == spendingTransactionId);
+
+                            // Find all the spending details containing the spending transaction id and aggregate the sums.
+                            // This is our best shot at finding the total value of inputs for this transaction.
+                            var inputsAmount = new Money(spendingDetails.Where(t => t.Transaction.SpendingDetails.TransactionId == spendingTransactionId).Sum(t => t.Transaction.Amount));
+
+                            // The fee is calculated as follows: funds in utxo - amount spent - amount sent as change.
+                            sentItem.Fee = inputsAmount - sentItem.Amount - (changeAddress == null ? 0 : changeAddress.Transaction.Amount);
+
+                            // Mined/staked coins add more coins to the total out.
+                            // That makes the fee negative. If that's the case ignore the fee.
+                            if (sentItem.Fee < 0)
+                                sentItem.Fee = 0;
+
+                            transactionItems.Add(sentItem);
+                            itemsCount++;
+                        }
+
+                        // We don't show in history transactions that are outputs of staking transactions.
+                        if (transaction.IsCoinStake != null && transaction.IsCoinStake.Value && transaction.SpendingDetails == null)
+                        {
+                            continue;
+                        }
+
+                        // Create a record for a 'receive' transaction.
+                        if (transaction.IsCoinStake == null && !address.IsChangeAddress())
+                        {
+                            // Add incoming fund transaction details.
+                            var receivedItem = new TransactionItemModel
+                            {
+                                Type = TransactionItemType.Received,
+                                ToAddress = address.Address,
+                                Amount = transaction.Amount,
+                                Id = transaction.Id,
+                                Timestamp = transaction.CreationTime,
+                                ConfirmedInBlock = transaction.BlockHeight,
+                                BlockIndex = transaction.BlockIndex
+                            };
+
+                            transactionItems.Add(receivedItem);
+                            itemsCount++;
+                        }
+                    }
+
+                    transactionItems = transactionItems.Distinct(new SentTransactionItemModelComparer()).Select(e => e).ToList();
+
+                    // Sort and filter the history items.
+                    List<TransactionItemModel> itemsToInclude = transactionItems.OrderByDescending(t => t.Timestamp)
+                        .Where(x => string.IsNullOrEmpty(request.SearchQuery) || (x.Id.ToString() == request.SearchQuery || x.ToAddress == request.SearchQuery || x.Payments.Any(p => p.DestinationAddress == request.SearchQuery)))
+                        .Skip(request.Skip ?? 0)
+                        .Take(request.Take ?? transactionItems.Count)
+                        .ToList();
+
+                    model.AccountsHistoryModel.Add(new AccountHistoryModel
+                    {
+                        TransactionsHistory = itemsToInclude,
+                        Name = accountHistory.Account.Name,
+                        CoinType = this.coinType,
+                        HdPath = accountHistory.Account.HdPath
+                    });
+                }
+
+                return this.Json(model);
+            }
+            catch (Exception e)
+            {
+                this.logger.LogError("Exception occurred: {0}", e.ToString());
+                return ErrorHelpers.BuildErrorResponse(HttpStatusCode.BadRequest, e.Message, e.ToString());
+            }
+        }
+        
         /// <summary>
         /// Gets the balance of a wallet in STRAT (or sidechain coin). Both the confirmed and unconfirmed balance are returned.
         /// </summary>

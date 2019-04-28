@@ -395,7 +395,7 @@ namespace Stratis.Features.FederatedPeg.TargetChain
                             continue;
                         }
 
-                        if (!this.federationWalletManager.IsFederationActive())
+                        if (!this.federationWalletManager.IsFederationWalletActive())
                         {
                             this.logger.LogError("The store can't persist mature deposits while the federation is inactive.");
                             continue;
@@ -846,7 +846,7 @@ namespace Stratis.Features.FederatedPeg.TargetChain
                     break;
             }
 
-            List<Block> blocks = this.blockRepository.GetBlocksAsync(blockHashes).GetAwaiter().GetResult();
+            List<Block> blocks = this.blockRepository.GetBlocks(blockHashes);
             int availableBlocks = blocks.FindIndex(b => (b == null));
             if (availableBlocks < 0)
                 availableBlocks = blocks.Count;

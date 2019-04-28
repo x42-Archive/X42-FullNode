@@ -20,7 +20,7 @@ namespace Stratis.Features.FederatedPeg.Tests
         private readonly Mock<ILoggerFactory> loggerFactory;
         private readonly Mock<ILogger> logger;
         private readonly Mock<IFederationWalletManager> federationWalletManager;
-        private readonly Mock<IFederationWalletTransactionBuilder> federationWalletTransactionHandler;
+        private readonly Mock<IFederationWalletTransactionHandler> federationWalletTransactionHandler;
         private readonly Mock<IFederationGatewaySettings> federationGatewaySettings;
 
         public WithdrawalTransactionBuilderTests()
@@ -28,7 +28,7 @@ namespace Stratis.Features.FederatedPeg.Tests
             this.loggerFactory = new Mock<ILoggerFactory>();
             this.network = FederatedPegNetwork.NetworksSelector.Regtest();
             this.federationWalletManager = new Mock<IFederationWalletManager>();
-            this.federationWalletTransactionHandler = new Mock<IFederationWalletTransactionBuilder>();
+            this.federationWalletTransactionHandler = new Mock<IFederationWalletTransactionHandler>();
             this.federationGatewaySettings = new Mock<IFederationGatewaySettings>();
 
             this.logger = new Mock<ILogger>();
@@ -76,7 +76,7 @@ namespace Stratis.Features.FederatedPeg.Tests
         {
             // Throw a 'no spendable transactions' exception
             this.federationWalletTransactionHandler.Setup(x => x.BuildTransaction(It.IsAny<TransactionBuildContext>()))
-                .Throws(new WalletException(FederationWalletTransactionBuilder.NoSpendableTransactionsMessage));
+                .Throws(new WalletException(FederationWalletTransactionHandler.NoSpendableTransactionsMessage));
 
             var txBuilder = new WithdrawalTransactionBuilder(
                 this.loggerFactory.Object,
@@ -96,6 +96,33 @@ namespace Stratis.Features.FederatedPeg.Tests
 
             // Log out a warning in this case, not an error.
             this.logger.Verify(x=>x.Log<object>(LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<object>(), null, It.IsAny<Func<object, Exception, string>>()));
+        }
+
+        [Fact]
+        public void NotEnoughFundsLogWarning()
+        {
+            // Throw a 'no spendable transactions' exception
+            this.federationWalletTransactionHandler.Setup(x => x.BuildTransaction(It.IsAny<TransactionBuildContext>()))
+                .Throws(new WalletException(FederationWalletTransactionHandler.NotEnoughFundsMessage));
+
+            var txBuilder = new WithdrawalTransactionBuilder(
+                this.loggerFactory.Object,
+                this.network,
+                this.federationWalletManager.Object,
+                this.federationWalletTransactionHandler.Object,
+                this.federationGatewaySettings.Object
+            );
+
+            var recipient = new Recipient
+            {
+                Amount = Money.Coins(101),
+                ScriptPubKey = new Script()
+            };
+
+            Transaction ret = txBuilder.BuildWithdrawalTransaction(uint256.One, 100, recipient);
+
+            // Log out a warning in this case, not an error.
+            this.logger.Verify(x => x.Log<object>(LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<object>(), null, It.IsAny<Func<object, Exception, string>>()));
         }
     }
 }

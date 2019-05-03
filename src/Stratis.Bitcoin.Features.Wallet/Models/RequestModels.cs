@@ -195,8 +195,7 @@ namespace Stratis.Bitcoin.Features.Wallet.Models
         public string SearchQuery { get; set; }
          /// <summary>
         /// An optional value allowing pagination of the wallet's history. If given,
-        /// the member specifies the page in the wallet's history to retrieve in this call; otherwise all
-        /// wallet history records are retrieved.
+        /// the member specifies the page in the wallet's history to retrieve in this call; 
         /// </summary>  
         public int Page { get; set; }
     }

@@ -644,9 +644,16 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
                     List<FlatHistory> allchange = items.Where(t => t.Address.IsChangeAddress()).ToList();
 
                     int itemsCount = 0;
+                    int rangeMax = request.Page*MaxHistoryItemsPerAccount;
+                    int rangeMin = (request.Page-1)*MaxHistoryItemsPerAccount;
                     foreach (FlatHistory item in history)
                     {
-
+                        if (itemsCount == rangeMax)
+                            {
+                            break;
+                            }
+                        else if(itemsCount>=rangeMin)
+                        {
                         TransactionData transaction = item.Transaction;
                         HdAddress address = item.Address;
 
@@ -756,6 +763,11 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
                             transactionItems.Add(receivedItem);
                             itemsCount++;
                         }
+                        }
+                        else {
+                           itemsCount++;
+                        }
+                      
                     }
 
                     transactionItems = transactionItems.Distinct(new SentTransactionItemModelComparer()).Select(e => e).ToList();

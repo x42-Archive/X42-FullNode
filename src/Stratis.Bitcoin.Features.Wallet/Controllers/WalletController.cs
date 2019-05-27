@@ -383,27 +383,43 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
 
             try
             {
-                Wallet wallet = this.walletManager.GetWallet(request.Name);
-
-                var model = new WalletGeneralInfoModel
+                if (string.IsNullOrWhiteSpace(request.Name))
                 {
-                    Network = wallet.Network,
-                    CreationTime = wallet.CreationTime,
-                    LastBlockSyncedHeight = wallet.AccountsRoot.Single().LastBlockSyncedHeight,
-                    ConnectedNodes = this.connectionManager.ConnectedPeers.Count(),
-                    ChainTip = this.chainIndexer.Tip.Height,
-                    IsChainSynced = this.chainIndexer.IsDownloaded(),
-                    IsDecrypted = true
-                };
+                    var model = new WalletGeneralInfoModel
+                    {
+                        Network = this.network,
+                        CreationTime = Utils.UnixTimeToDateTime(this.network.GenesisTime),
+                        LastBlockSyncedHeight = this.walletManager.LastBlockHeight(),
+                        ConnectedNodes = this.connectionManager.ConnectedPeers.Count(),
+                        ChainTip = this.chainIndexer.Tip.Height,
+                        IsChainSynced = this.chainIndexer.IsDownloaded(),
+                        IsDecrypted = true
+                    };
+                    return this.Json(model);
+                }
+                else
+                {
+                    Wallet wallet = this.walletManager.GetWallet(request.Name);
 
-                // Get the wallet's file path.
-                (string folder, IEnumerable<string> fileNameCollection) = this.walletManager.GetWalletsFiles();
-                string searchFile = Path.ChangeExtension(request.Name, this.walletManager.GetWalletFileExtension());
-                string fileName = fileNameCollection.FirstOrDefault(i => i.Equals(searchFile));
-                if (folder != null && fileName != null)
-                    model.WalletFilePath = Path.Combine(folder, fileName);
+                    var model = new WalletGeneralInfoModel
+                    {
+                        Network = wallet.Network,
+                        CreationTime = wallet.CreationTime,
+                        LastBlockSyncedHeight = wallet.AccountsRoot.Single().LastBlockSyncedHeight,
+                        ConnectedNodes = this.connectionManager.ConnectedPeers.Count(),
+                        ChainTip = this.chainIndexer.Tip.Height,
+                        IsChainSynced = this.chainIndexer.IsDownloaded(),
+                        IsDecrypted = true
+                    };
 
-                return this.Json(model);
+                    // Get the wallet's file path.
+                    (string folder, IEnumerable<string> fileNameCollection) = this.walletManager.GetWalletsFiles();
+                    string searchFile = Path.ChangeExtension(request.Name, this.walletManager.GetWalletFileExtension());
+                    string fileName = fileNameCollection.FirstOrDefault(i => i.Equals(searchFile));
+                    if (folder != null && fileName != null)
+                        model.WalletFilePath = Path.Combine(folder, fileName);
+                    return this.Json(model);
+                }
             }
             catch (Exception e)
             {

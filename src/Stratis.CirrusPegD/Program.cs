@@ -15,11 +15,14 @@ using Stratis.Bitcoin.Features.Miner;
 using Stratis.Bitcoin.Features.Notifications;
 using Stratis.Bitcoin.Features.RPC;
 using Stratis.Bitcoin.Features.SmartContracts;
+using Stratis.Bitcoin.Features.SmartContracts.PoA;
 using Stratis.Bitcoin.Features.SmartContracts.Wallet;
 using Stratis.Bitcoin.Features.Wallet;
 using Stratis.Bitcoin.Networks;
 using Stratis.Bitcoin.Utilities;
 using Stratis.Features.FederatedPeg;
+using Stratis.Features.FederatedPeg.Collateral;
+using Stratis.Features.FederatedPeg.CounterChain;
 using Stratis.Sidechains.Networks;
 
 namespace Stratis.CirrusPegD
@@ -31,9 +34,9 @@ namespace Stratis.CirrusPegD
 
         private static readonly Dictionary<NetworkType, Func<Network>> SidechainNetworks = new Dictionary<NetworkType, Func<Network>>
         {
-            { NetworkType.Mainnet, FederatedPegNetwork.NetworksSelector.Mainnet },
-            { NetworkType.Testnet, FederatedPegNetwork.NetworksSelector.Testnet},
-            { NetworkType.Regtest, FederatedPegNetwork.NetworksSelector.Regtest }
+            { NetworkType.Mainnet, CirrusNetwork.NetworksSelector.Mainnet },
+            { NetworkType.Testnet, CirrusNetwork.NetworksSelector.Testnet },
+            { NetworkType.Regtest, CirrusNetwork.NetworksSelector.Regtest }
         };
 
         private static readonly Dictionary<NetworkType, Func<Network>> MainChainNetworks = new Dictionary<NetworkType, Func<Network>>
@@ -73,17 +76,23 @@ namespace Stratis.CirrusPegD
 
         private static IFullNode GetMainchainFullNode(string[] args)
         {
+            // TODO: Hardcode -addressindex
+
             var nodeSettings = new NodeSettings(networksSelector: Networks.Stratis, protocolVersion: ProtocolVersion.PROVEN_HEADER_VERSION, args: args)
             {
                 MinProtocolVersion = ProtocolVersion.ALT_PROTOCOL_VERSION
             };
 
-            var fedPegOptions = new FederatedPegOptions(
-                counterChainNetwork: SidechainNetworks[nodeSettings.Network.NetworkType]()
-            );
-
             IFullNode node = new FullNodeBuilder()
-                .AddCommonFeatures(nodeSettings, fedPegOptions)
+                .UseNodeSettings(nodeSettings)
+                .UseBlockStore()
+                .SetCounterChainNetwork(SidechainNetworks[nodeSettings.Network.NetworkType]())
+                .AddFederatedPeg()
+                .UseTransactionNotification()
+                .UseBlockNotification()
+                .UseApi()
+                .UseMempool()
+                .AddRPC()
                 .UsePosConsensus()
                 .UseWallet()
                 .AddPowPosMining()
@@ -94,42 +103,32 @@ namespace Stratis.CirrusPegD
 
         private static IFullNode GetSidechainFullNode(string[] args)
         {
-            var nodeSettings = new NodeSettings(networksSelector: FederatedPegNetwork.NetworksSelector, protocolVersion: ProtocolVersion.ALT_PROTOCOL_VERSION, args: args)
+            var nodeSettings = new NodeSettings(networksSelector: CirrusNetwork.NetworksSelector, protocolVersion: ProtocolVersion.ALT_PROTOCOL_VERSION, args: args)
             {
                 MinProtocolVersion = ProtocolVersion.ALT_PROTOCOL_VERSION
             };
 
-            var fedPegOptions = new FederatedPegOptions(
-                counterChainNetwork: MainChainNetworks[nodeSettings.Network.NetworkType]()
-            );
-
             IFullNode node = new FullNodeBuilder()
-                .AddCommonFeatures(nodeSettings, fedPegOptions)
-                .AddSmartContracts(options =>
-                {
-                    options.UseReflectionExecutor();
-                })
-                .UseSmartContractWallet()
-                .UseFederatedPegPoAMining()
-                .Build();
-
-            return node;
-        }
-    }
-
-    internal static class CommonFeaturesExtension
-    {
-        internal static IFullNodeBuilder AddCommonFeatures(this IFullNodeBuilder fullNodeBuilder, NodeSettings nodeSettings, FederatedPegOptions options)
-        {
-            return fullNodeBuilder
                 .UseNodeSettings(nodeSettings)
                 .UseBlockStore()
-                .AddFederationGateway(options)
+                .SetCounterChainNetwork(MainChainNetworks[nodeSettings.Network.NetworkType]())
+                .UseFederatedPegPoAMining()
+                .AddFederatedPeg()
+                .CheckForPoAMembersCollateral()
                 .UseTransactionNotification()
                 .UseBlockNotification()
                 .UseApi()
                 .UseMempool()
-                .AddRPC();
+                .AddRPC()
+                .AddSmartContracts(options =>
+                {
+                    options.UseReflectionExecutor();
+                    options.UsePoAWhitelistedContracts();
+                })
+                .UseSmartContractWallet()
+                .Build();
+
+            return node;
         }
     }
 }

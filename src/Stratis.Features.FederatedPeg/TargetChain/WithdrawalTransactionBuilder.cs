@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using NBitcoin;
@@ -23,20 +24,20 @@ namespace Stratis.Features.FederatedPeg.TargetChain
 
         private readonly IFederationWalletManager federationWalletManager;
         private readonly IFederationWalletTransactionHandler federationWalletTransactionHandler;
-        private readonly IFederationGatewaySettings federationGatewaySettings;
+        private readonly IFederatedPegSettings federatedPegSettings;
 
         public WithdrawalTransactionBuilder(
             ILoggerFactory loggerFactory,
             Network network,
             IFederationWalletManager federationWalletManager,
             IFederationWalletTransactionHandler federationWalletTransactionHandler,
-            IFederationGatewaySettings federationGatewaySettings)
+            IFederatedPegSettings federatedPegSettings)
         {
             this.logger = loggerFactory.CreateLogger(this.GetType().FullName);
             this.network = network;
             this.federationWalletManager = federationWalletManager;
             this.federationWalletTransactionHandler = federationWalletTransactionHandler;
-            this.federationGatewaySettings = federationGatewaySettings;
+            this.federatedPegSettings = federatedPegSettings;
         }
 
         /// <inheritdoc />
@@ -44,18 +45,15 @@ namespace Stratis.Features.FederatedPeg.TargetChain
         {
             try
             {
-                this.logger.LogInformation("BuildDeterministicTransaction depositId(opReturnData)={0} recipient.ScriptPubKey={1} recipient.Amount={2}", depositId, recipient.ScriptPubKey, recipient.Amount);
+                this.logger.LogDebug("BuildDeterministicTransaction depositId(opReturnData)={0} recipient.ScriptPubKey={1} recipient.Amount={2}", depositId, recipient.ScriptPubKey, recipient.Amount);
 
                 // Build the multisig transaction template.
                 uint256 opReturnData = depositId;
                 string walletPassword = this.federationWalletManager.Secret.WalletPassword;
                 bool sign = (walletPassword ?? "") != "";
-                var multiSigContext = new TransactionBuildContext(new[]
+
+                var multiSigContext = new TransactionBuildContext(new List<Recipient>(), opReturnData: opReturnData.ToBytes())
                 {
-                    recipient.WithPaymentReducedByFee(this.federationGatewaySettings.TransactionFee)
-                }.ToList(), opReturnData: opReturnData.ToBytes())
-                {
-                    TransactionFee = this.federationGatewaySettings.TransactionFee,
                     MinConfirmations = MinConfirmations,
                     Shuffle = false,
                     IgnoreVerify = true,
@@ -64,16 +62,25 @@ namespace Stratis.Features.FederatedPeg.TargetChain
                     Time = this.network.Consensus.IsProofOfStake ? blockTime : (uint?) null
                 };
 
+                multiSigContext.Recipients = new List<Recipient> { recipient.WithPaymentReducedByFee(FederatedPegSettings.CrossChainTransferFee) }; // The fee known to the user is taken.
+
+                // TODO: Amend this so we're not picking coins twice.
+                (List<Coin> coins, List<Wallet.UnspentOutputReference> unspentOutputs) = FederationWalletTransactionHandler.DetermineCoins(this.federationWalletManager, this.network, multiSigContext, this.federatedPegSettings);
+
+                multiSigContext.TransactionFee = this.federatedPegSettings.GetWithdrawalTransactionFee(coins.Count); // The "actual fee". Everything else goes to the fed.
+                multiSigContext.SelectedInputs = unspentOutputs.Select(u => u.ToOutPoint()).ToList();
+                multiSigContext.AllowOtherInputs = false;
+
                 // Build the transaction.
                 Transaction transaction = this.federationWalletTransactionHandler.BuildTransaction(multiSigContext);
 
-                this.logger.LogInformation("transaction = {0}", transaction.ToString(this.network, RawFormat.BlockExplorer));
+                this.logger.LogDebug("transaction = {0}", transaction.ToString(this.network, RawFormat.BlockExplorer));
 
                 return transaction;
             }
             catch (Exception error)
             {
-                if (error is WalletException walletException && 
+                if (error is WalletException walletException &&
                     (walletException.Message == FederationWalletTransactionHandler.NoSpendableTransactionsMessage
                      || walletException.Message == FederationWalletTransactionHandler.NotEnoughFundsMessage))
                 {

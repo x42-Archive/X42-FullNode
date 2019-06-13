@@ -15,10 +15,21 @@ using Stratis.Bitcoin.Utilities.ModelStateErrors;
 
 namespace Stratis.Bitcoin.Features.BlockStore.Controllers
 {
+    public static class BlockStoreRouteEndPoint
+    {
+        public const string GetAddressesBalances = "getaddressesbalances";
+        public const string GetVerboseAddressesBalances = "getverboseaddressesbalances";
+        public const string GetAddressIndexerTip = "addressindexertip";
+        public const string GetBlock = "block";
+        public const string GetBlockCount = "GetBlockCount";
+    }
+
     /// <summary>Controller providing operations on a blockstore.</summary>
     [Route("api/[controller]")]
     public class BlockStoreController : Controller
     {
+        private readonly IAddressIndexer addressIndexer;
+
         /// <see cref="IBlockStore"/>
         private readonly IBlockStore blockStore;
 
@@ -33,8 +44,6 @@ namespace Stratis.Bitcoin.Features.BlockStore.Controllers
 
         /// <summary>Current network for the active controller instance.</summary>
         private readonly Network network;
-
-        private readonly IAddressIndexer addressIndexer;
 
         public BlockStoreController(
             Network network,
@@ -58,11 +67,31 @@ namespace Stratis.Bitcoin.Features.BlockStore.Controllers
         }
 
         /// <summary>
+        /// Retrieves the <see cref="addressIndexer"/>'s tip.
+        /// </summary>
+        /// <returns>An instance of <see cref="AddressIndexerTipModel"/> containing the tip's hash and height.</returns>
+        [Route(BlockStoreRouteEndPoint.GetAddressIndexerTip)]
+        [HttpGet]
+        public IActionResult GetAddressIndexerTip()
+        {
+            try
+            {
+                ChainedHeader addressIndexerTip = this.addressIndexer.IndexerTip;
+                return this.Json(new AddressIndexerTipModel() { TipHash = addressIndexerTip?.HashBlock, TipHeight = addressIndexerTip?.Height });
+            }
+            catch (Exception e)
+            {
+                this.logger.LogError("Exception occurred: {0}", e.ToString());
+                return ErrorHelpers.BuildErrorResponse(HttpStatusCode.BadRequest, e.Message, e.ToString());
+            }
+        }
+
+        /// <summary>
         /// Retrieves the block which matches the supplied block hash.
         /// </summary>
         /// <param name="query">An object containing the necessary parameters to search for a block.</param>
         /// <returns><see cref="BlockModel"/> if block is found, <see cref="NotFoundObjectResult"/> if not found. Returns <see cref="IActionResult"/> with error information if exception thrown.</returns>
-        [Route("block")]
+        [Route(BlockStoreRouteEndPoint.GetBlock)]
         [HttpGet]
         public async Task<IActionResult> GetBlockAsync([FromQuery] SearchByHashRequest query)
         {
@@ -101,7 +130,7 @@ namespace Stratis.Bitcoin.Features.BlockStore.Controllers
         /// </summary>
         /// <remarks>This is an API implementation of an RPC call.</remarks>
         /// <returns>The current tip height. Returns <c>null</c> if fails. Returns <see cref="IActionResult"/> with error information if exception thrown.</returns>
-        [Route("getblockcount")]
+        [Route(BlockStoreRouteEndPoint.GetBlockCount)]
         [HttpGet]
         public IActionResult GetBlockCount()
         {
@@ -116,14 +145,24 @@ namespace Stratis.Bitcoin.Features.BlockStore.Controllers
             }
         }
 
-        /// <summary>Provides balance of the given address confirmed with at least <paramref name="minConfirmations"/> confirmations.</summary>
-        [Route("getaddressbalance")]
+        /// <summary>Provides balance of the given addresses confirmed with at least <paramref name="minConfirmations"/> confirmations.</summary>
+        /// <param name="addresses">A comma delimited set of addresses that will be queried.</param>
+        /// <returns>A result object containing the balance for each requested address and if so, a meesage stating why the indexer is not queryable.</returns>
+        [Route(BlockStoreRouteEndPoint.GetAddressesBalances)]
         [HttpGet]
-        public IActionResult GetAddressBalance([FromQuery] string address, int minConfirmations)
+        public IActionResult GetAddressesBalances(string addresses, int minConfirmations)
         {
             try
             {
-                return this.Json(this.addressIndexer.GetAddressBalance(address, minConfirmations));
+                string[] addressesArray = addresses.Split(',');
+
+                this.logger.LogDebug("Asking data for {0} addresses.", addressesArray.Length);
+
+                AddressBalancesResult result = this.addressIndexer.GetAddressBalances(addressesArray, minConfirmations);
+
+                this.logger.LogDebug("Sending data for {0} addresses.", result.Balances.Count);
+
+                return this.Json(result);
             }
             catch (Exception e)
             {
@@ -132,14 +171,23 @@ namespace Stratis.Bitcoin.Features.BlockStore.Controllers
             }
         }
 
-        /// <summary>Returns the total amount received by the given address in transactions with at least<paramref name= "minConfirmations" /> confirmations.</ summary >
-        [Route("getreceivedbyaddress")]
+
+        /// <summary>Provides verbose balance data of the given addresses.</summary>
+        /// <param name="addresses">A comma delimited set of addresses that will be queried.</param>
+        /// <returns>A result object containing the balance for each requested address and if so, a meesage stating why the indexer is not queryable.</returns>
+        [Route(BlockStoreRouteEndPoint.GetVerboseAddressesBalances)]
         [HttpGet]
-        public IActionResult GetReceivedByAddress([FromQuery] string address, int minConfirmations)
+        public IActionResult GetVerboseAddressesBalancesData(string addresses)
         {
             try
             {
-                return this.Json(this.addressIndexer.GetReceivedByAddress(address, minConfirmations));
+                string[] addressesArray = addresses.Split(',');
+
+                this.logger.LogDebug("Asking data for {0} addresses.", addressesArray.Length);
+
+                VerboseAddressBalancesResult result = this.addressIndexer.GetVerboseAddressBalancesData(addressesArray);
+
+                return this.Json(result);
             }
             catch (Exception e)
             {

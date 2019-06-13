@@ -5,8 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Stratis.Bitcoin.Controllers;
 using Stratis.Features.FederatedPeg.Interfaces;
-using Stratis.Features.FederatedPeg.RestClients;
 using Xunit;
 
 namespace Stratis.Features.FederatedPeg.Tests.RestClientsTests
@@ -24,13 +24,13 @@ namespace Stratis.Features.FederatedPeg.Tests.RestClientsTests
             this.loggerFactory = Substitute.For<ILoggerFactory>();
             this.logger = Substitute.For<ILogger>();
             this.loggerFactory.CreateLogger(null).ReturnsForAnyArgs(this.logger);
-            this.httpClientFactory = new HttpClientFactory();
+            this.httpClientFactory = new Bitcoin.Controllers.HttpClientFactory();
         }
 
         [Fact]
         public async Task TestRetriesCountAsync()
         {
-            IFederationGatewaySettings federationSettings = Substitute.For<IFederationGatewaySettings>();
+            ICounterChainSettings federationSettings = Substitute.For<ICounterChainSettings>();
 
             var testClient = new TestRestApiClient(this.loggerFactory, federationSettings, this.httpClientFactory);
 
@@ -45,8 +45,8 @@ namespace Stratis.Features.FederatedPeg.Tests.RestClientsTests
     {
         public int RetriesCount { get; private set; }
 
-        public TestRestApiClient(ILoggerFactory loggerFactory, IFederationGatewaySettings settings, IHttpClientFactory httpClientFactory)
-            : base(loggerFactory, settings, httpClientFactory)
+        public TestRestApiClient(ILoggerFactory loggerFactory, ICounterChainSettings settings, IHttpClientFactory httpClientFactory)
+            : base(loggerFactory, httpClientFactory, settings.CounterChainApiPort, "FederationGateway", "http://localhost")
         {
             this.RetriesCount = 0;
         }

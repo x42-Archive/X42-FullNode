@@ -119,9 +119,9 @@ namespace Stratis.Bitcoin.Networks
                 lastPowBlock: 523,
                 proofOfStakeLimitV2: new BigInteger(uint256.Parse("000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff").ToBytes(false)),
                 proofOfStakeReward: Money.Coins(20),
-                subsidyLimit: 550000,
-                proofOfStakeRewardAfterSubsidyLimit: Money.Coins(5),
-                lastProofOfStakeRewardHeight: 4652092
+                subsidyLimit: 400000,
+                proofOfStakeRewardAfterSubsidyLimit: Money.Coins(2),
+                lastProofOfStakeRewardHeight: 12155230
             );
 
             this.Base58Prefixes = new byte[12][];

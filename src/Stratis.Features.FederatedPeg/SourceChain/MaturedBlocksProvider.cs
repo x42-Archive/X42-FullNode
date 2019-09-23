@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NBitcoin;
 using Stratis.Bitcoin.Consensus;
+using Stratis.Bitcoin.Controllers;
 using Stratis.Bitcoin.Primitives;
 using Stratis.Features.FederatedPeg.Interfaces;
 using Stratis.Features.FederatedPeg.Models;
-using Stratis.Features.FederatedPeg.RestClients;
 
 namespace Stratis.Features.FederatedPeg.SourceChain
 {
@@ -65,6 +65,13 @@ namespace Stratis.Features.FederatedPeg.SourceChain
                 ChainedHeader currentHeader = consensusTip.GetAncestor(i);
 
                 ChainedHeaderBlock block = this.consensusManager.GetBlockData(currentHeader.HashBlock);
+
+                if (block?.Block?.Transactions == null)
+                {
+                    // Report unexpected results from consenus manager.
+                    this.logger.LogWarning("Stop matured blocks collection due to consensus manager integrity failure. Send what we've collected.");
+                    break;
+                }
 
                 MaturedBlockDepositsModel maturedBlockDeposits = this.depositExtractor.ExtractBlockDeposits(block);
 

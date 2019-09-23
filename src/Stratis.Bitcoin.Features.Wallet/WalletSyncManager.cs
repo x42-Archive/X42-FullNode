@@ -11,7 +11,6 @@ using Stratis.Bitcoin.EventBus.CoreEvents;
 using Stratis.Bitcoin.Features.BlockStore;
 using Stratis.Bitcoin.Features.Wallet.Interfaces;
 using Stratis.Bitcoin.Interfaces;
-using Stratis.Bitcoin.Primitives;
 using Stratis.Bitcoin.Signals;
 using Stratis.Bitcoin.Utilities;
 
@@ -103,6 +102,7 @@ namespace Stratis.Bitcoin.Features.Wallet
                 ChainedHeader fork = this.chainIndexer.FindFork(blockLocator);
                 this.walletManager.RemoveBlocks(fork);
                 this.walletManager.WalletTipHash = fork.HashBlock;
+                this.walletManager.WalletTipHeight = fork.Height;
                 this.walletTip = fork;
             }
 
@@ -309,6 +309,7 @@ namespace Stratis.Bitcoin.Features.Wallet
             ChainedHeader chainedHeader = this.chainIndexer.GetHeader(height);
             this.walletTip = chainedHeader ?? throw new WalletException("Invalid block height");
             this.walletManager.WalletTipHash = chainedHeader.HashBlock;
+            this.walletManager.WalletTipHeight = chainedHeader.Height;
         }
 
         /// <inheritdoc />

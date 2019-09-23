@@ -14,6 +14,8 @@ using Stratis.Bitcoin.Features.Wallet.Models;
 using Stratis.Bitcoin.IntegrationTests.Common;
 using Stratis.Bitcoin.IntegrationTests.Common.EnvironmentMockUpHelpers;
 using Stratis.Bitcoin.Networks;
+using Stratis.Bitcoin.Tests.Common;
+using Stratis.Features.FederatedPeg.CounterChain;
 using Stratis.Features.FederatedPeg.Models;
 using Stratis.Sidechains.Networks;
 
@@ -40,7 +42,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
 
         public Network MainChainNetwork { get; }
 
-        public FederatedPegRegTest SideChainNetwork { get; }
+        public CirrusRegTest SideChainNetwork { get; }
 
         // TODO: HashSets / Readonly
         public IReadOnlyList<CoreNode> MainChainNodes { get; }
@@ -48,7 +50,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
         public IReadOnlyList<CoreNode> MainChainFedNodes { get; }
         public IReadOnlyList<CoreNode> SideChainFedNodes { get; }
 
-        public CoreNode MainUser{ get; }
+        public CoreNode MainUser { get; }
         public CoreNode FedMain1 { get; }
         public CoreNode FedMain2 { get; }
         public CoreNode FedMain3 { get; }
@@ -61,7 +63,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
         public SidechainTestContext()
         {
             this.MainChainNetwork = Networks.Stratis.Regtest();
-            this.SideChainNetwork = (FederatedPegRegTest)FederatedPegNetwork.NetworksSelector.Regtest();
+            this.SideChainNetwork = (CirrusRegTest)CirrusNetwork.NetworksSelector.Regtest();
 
             this.mnemonics = this.SideChainNetwork.FederationMnemonics;
             this.pubKeysByMnemonic = this.mnemonics.ToDictionary(m => m, m => m.DeriveExtKey().PrivateKey.PubKey);
@@ -121,7 +123,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
             this.StartMainNodes();
             this.StartSideNodes();
 
-            TestHelper.WaitLoop(() => this.FedMain3.State == CoreNodeState.Running && this.FedSide3.State == CoreNodeState.Running);
+            TestBase.WaitLoop(() => this.FedMain3.State == CoreNodeState.Running && this.FedSide3.State == CoreNodeState.Running);
 
             this.ConnectMainChainNodes();
             this.ConnectSideChainNodes();
@@ -216,7 +218,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
                 {
                     walletName = WalletName,
                     accountName = WalletAccount,
-                    password =  WalletPassword,
+                    password = WalletPassword,
                     opReturnData = sidechainDepositAddress,
                     feeAmount = "0.01",
                     allowUnconfirmed = true,
@@ -277,15 +279,15 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
         {
             string fedIps = $"{fed1.Endpoint},{fed2.Endpoint},{fed3.Endpoint}";
 
-            fed1.AppendToConfig($"{FederationGatewaySettings.FederationIpsParam}={fedIps}");
-            fed2.AppendToConfig($"{FederationGatewaySettings.FederationIpsParam}={fedIps}");
-            fed3.AppendToConfig($"{FederationGatewaySettings.FederationIpsParam}={fedIps}");
+            fed1.AppendToConfig($"{FederatedPegSettings.FederationIpsParam}={fedIps}");
+            fed2.AppendToConfig($"{FederatedPegSettings.FederationIpsParam}={fedIps}");
+            fed3.AppendToConfig($"{FederatedPegSettings.FederationIpsParam}={fedIps}");
         }
 
         private void ApplyCounterChainAPIPort(CoreNode fromNode, CoreNode toNode)
         {
-            fromNode.AppendToConfig($"{FederationGatewaySettings.CounterChainApiPortParam}={toNode.ApiPort.ToString()}");
-            toNode.AppendToConfig($"{FederationGatewaySettings.CounterChainApiPortParam}={fromNode.ApiPort.ToString()}");
+            fromNode.AppendToConfig($"{CounterChainSettings.CounterChainApiPortParam}={toNode.ApiPort.ToString()}");
+            toNode.AppendToConfig($"{CounterChainSettings.CounterChainApiPortParam}={fromNode.ApiPort.ToString()}");
         }
 
         private void ApplyConfigParametersToNodes()
@@ -307,25 +309,25 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
             this.FedMain3.AppendToConfig($"mindepositconfirmations=5");
 
             // To look for deposits from the beginning on our sidechain.
-            this.FedSide1.AppendToConfig($"{FederationGatewaySettings.CounterChainDepositBlock}=1");
-            this.FedSide2.AppendToConfig($"{FederationGatewaySettings.CounterChainDepositBlock}=1");
-            this.FedSide3.AppendToConfig($"{FederationGatewaySettings.CounterChainDepositBlock}=1");
+            this.FedSide1.AppendToConfig($"{FederatedPegSettings.CounterChainDepositBlock}=1");
+            this.FedSide2.AppendToConfig($"{FederatedPegSettings.CounterChainDepositBlock}=1");
+            this.FedSide3.AppendToConfig($"{FederatedPegSettings.CounterChainDepositBlock}=1");
 
-            this.FedSide1.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
-            this.FedSide2.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
-            this.FedSide3.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedSide1.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedSide2.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedSide3.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
 
-            this.FedMain1.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
-            this.FedMain2.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
-            this.FedMain3.AppendToConfig($"{FederationGatewaySettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedMain1.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedMain2.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
+            this.FedMain3.AppendToConfig($"{FederatedPegSettings.RedeemScriptParam}={this.scriptAndAddresses.payToMultiSig.ToString()}");
 
-            this.FedSide1.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[0]].ToString()}");
-            this.FedSide2.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[1]].ToString()}");
-            this.FedSide3.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[2]].ToString()}");
+            this.FedSide1.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[0]].ToString()}");
+            this.FedSide2.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[1]].ToString()}");
+            this.FedSide3.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[2]].ToString()}");
 
-            this.FedMain1.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[0]].ToString()}");
-            this.FedMain2.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[1]].ToString()}");
-            this.FedMain3.AppendToConfig($"{FederationGatewaySettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[2]].ToString()}");
+            this.FedMain1.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[0]].ToString()}");
+            this.FedMain2.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[1]].ToString()}");
+            this.FedMain3.AppendToConfig($"{FederatedPegSettings.PublicKeyParam}={this.pubKeysByMnemonic[this.mnemonics[2]].ToString()}");
 
             this.ApplyFederationIPs(this.FedMain1, this.FedMain2, this.FedMain3);
             this.ApplyFederationIPs(this.FedSide1, this.FedSide2, this.FedSide3);
@@ -340,7 +342,7 @@ namespace Stratis.Features.FederatedPeg.IntegrationTests.Utils
         private void ApplyAgentPrefixToNodes()
         {
             // name assigning a little gross here - fix later.
-            string[] names = new string[] {"SideUser", "FedSide1", "FedSide2", "FedSide3", "MainUser", "FedMain1", "FedMain2", "FedMain3"};
+            string[] names = new string[] { "SideUser", "FedSide1", "FedSide2", "FedSide3", "MainUser", "FedMain1", "FedMain2", "FedMain3" };
             int index = 0;
             foreach (CoreNode n in this.SideChainNodes.Concat(this.MainChainNodes))
             {

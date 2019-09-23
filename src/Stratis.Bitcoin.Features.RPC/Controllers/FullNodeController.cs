@@ -316,26 +316,33 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
                 Address = address,
             };
 
-            // P2WPKH
-            if (BitcoinWitPubKeyAddress.IsValid(address, this.Network, out Exception _))
+            try
             {
-                result.IsValid = true;
+                // P2WPKH
+                if (BitcoinWitPubKeyAddress.IsValid(address, this.Network, out Exception _))
+                {
+                    result.IsValid = true;
+                }
+                // P2WSH
+                else if (BitcoinWitScriptAddress.IsValid(address, this.Network, out Exception _))
+                {
+                    result.IsValid = true;
+                }
+                // P2PKH
+                else if (BitcoinPubKeyAddress.IsValid(address, this.Network))
+                {
+                    result.IsValid = true;
+                }
+                // P2SH
+                else if (BitcoinScriptAddress.IsValid(address, this.Network))
+                {
+                    result.IsValid = true;
+                    result.IsScript = true;
+                }
             }
-            // P2WSH (unsupported)
-            else if (BitcoinWitScriptAddress.IsValid(address, this.Network, out Exception _))
+            catch(NotImplementedException)
             {
-                result.IsValid = true;
-            }
-            // P2PKH
-            else if (BitcoinPubKeyAddress.IsValid(address, this.Network))
-            {
-                result.IsValid = true;
-            }
-            // P2SH
-            else if (BitcoinScriptAddress.IsValid(address, this.Network))
-            {
-                result.IsValid = true;
-                result.IsScript = true;
+                result.IsValid = false;
             }
 
             if (result.IsValid)
@@ -351,15 +358,15 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
         /// <summary>
         /// RPC method for returning a block.
         /// <para>
-        /// Supports Json format by default, and optionally raw (hex) format by supplying <c>false</c> to <see cref="isJsonFormat"/>.
+        /// Supports Json format by default, and optionally raw (hex) format by supplying <c>0</c> to <see cref="verbosity"/>.
         /// </para>
         /// </summary>
         /// <param name="blockHash">Hash of block to find.</param>
-        /// <param name="verbosity">0 for hex encoded data, 1 for a json object, and 2 for json object with transaction data.</param>
+        /// <param name="verbosity">Defaults to 1. 0 for hex encoded data, 1 for a json object, and 2 for json object with transaction data.</param>
         /// <returns>The block according to format specified in <see cref="verbosity"/></returns>
         [ActionName("getblock")]
         [ActionDescription("Returns the block in hex, given a block hash.")]
-        public async Task<object> GetBlockAsync(string blockHash, int verbosity = 0)
+        public async Task<object> GetBlockAsync(string blockHash, int verbosity = 1)
         {
             Block block = this.blockStore != null ? this.blockStore.GetBlock(uint256.Parse(blockHash)) : null;
 

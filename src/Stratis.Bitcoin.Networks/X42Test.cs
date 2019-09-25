@@ -72,9 +72,9 @@ namespace Stratis.Bitcoin.Networks
 
             var bip9Deployments = new StratisBIP9Deployments()
             {
-                [StratisBIP9Deployments.ColdStaking] = new BIP9DeploymentsParameters(2,
-                    new DateTime(2018, 12, 1, 0, 0, 0, DateTimeKind.Utc),
-                    new DateTime(2019, 12, 1, 0, 0, 0, DateTimeKind.Utc))
+                [StratisBIP9Deployments.ColdStaking] = new BIP9DeploymentsParameters("ColdStaking", 2,
+                   new DateTime(2018, 11, 1, 0, 0, 0, DateTimeKind.Utc),
+                   new DateTime(2019, 6, 1, 0, 0, 0, DateTimeKind.Utc))
             };
 
             this.Consensus = new X42Consensus(
@@ -140,6 +140,9 @@ namespace Stratis.Bitcoin.Networks
 
             Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x6e7c625f36755963d0704dda57fce762c9baf29ea53d7c699e132da614e18d28"));
             Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x7a466c6b14e6b6fbb9003a1eaa03b431a1b88ebde7796cb6c819e6436337b565"));
+
+            this.RegisterRules(this.Consensus);
+            this.RegisterMempoolRules(this.Consensus);
         }
     }
 }

@@ -109,6 +109,12 @@ namespace Stratis.Bitcoin.Networks
         /// <inheritdoc />
         public List<IFullValidationConsensusRule> FullValidationRules { get; set; }
 
+        /// <inheritdoc />
+        public ConsensusRules ConsensusRules { get; }
+
+        /// <inheritdoc />
+        public List<Type> MempoolRules { get; set; }
+
         public Money ProofOfStakeRewardAfterSubsidyLimit { get; }
 
         public long SubsidyLimit { get; }
@@ -191,6 +197,8 @@ namespace Stratis.Bitcoin.Networks
             this.ProofOfStakeRewardAfterSubsidyLimit = proofOfStakeRewardAfterSubsidyLimit;
             this.SubsidyLimit = subsidyLimit;
             this.LastProofOfStakeRewardHeight = lastProofOfStakeRewardHeight;
+            this.ConsensusRules = new ConsensusRules();
+            this.MempoolRules = new List<Type>();
         }
     }
 }

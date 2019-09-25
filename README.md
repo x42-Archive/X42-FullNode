@@ -61,7 +61,8 @@ Create a Blockchain in a .NET Core style programming
 Running a FullNode
 ------------------
 
-Our full node is currently in alpha.  
+The master branch is actively developed and regularly committed to, and it can become unstable.  
+To compile a stable (production) release use any of the release tags form version 3.0.x.x and upwards.  
 
 ```
 git clone https://github.com/x42protocol/X42-FullNode.git

@@ -12,6 +12,7 @@ using Stratis.Bitcoin.Utilities.ModelStateErrors;
 
 namespace Stratis.Bitcoin.Features.PoA.Voting
 {
+    [ApiVersion("1")]
     [Route("api/[controller]")]
     public class DefaultVotingController : Controller
     {
@@ -21,16 +22,20 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
 
         protected readonly Network network;
 
+        private readonly IPollResultExecutor pollExecutor;
+
         private readonly IWhitelistedHashesRepository whitelistedHashesRepository;
 
         protected readonly ILogger logger;
 
-        public DefaultVotingController(IFederationManager fedManager, ILoggerFactory loggerFactory, VotingManager votingManager, IWhitelistedHashesRepository whitelistedHashesRepository, Network network) :base()
+        public DefaultVotingController(IFederationManager fedManager, ILoggerFactory loggerFactory, VotingManager votingManager,
+            IWhitelistedHashesRepository whitelistedHashesRepository, Network network, IPollResultExecutor pollExecutor)
         {
             this.fedManager = fedManager;
             this.votingManager = votingManager;
             this.whitelistedHashesRepository = whitelistedHashesRepository;
             this.network = network;
+            this.pollExecutor = pollExecutor;
 
             this.logger = loggerFactory.CreateLogger(this.GetType().FullName);
         }
@@ -41,9 +46,9 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
         {
             try
             {
-                List<string> hexList = this.fedManager.GetFederationMembers().Select(x => x.ToString()).ToList();
+                List<IFederationMember> federationMembers = this.fedManager.GetFederationMembers();
 
-                return this.Json(hexList);
+                return this.Json(federationMembers);
             }
             catch (Exception e)
             {
@@ -58,9 +63,11 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
         {
             try
             {
-                string polls = string.Join(Environment.NewLine, this.votingManager.GetPendingPolls().Select(x => x.ToString()).ToList());
+                List<Poll> polls = this.votingManager.GetPendingPolls();
 
-                return this.Ok(polls);
+                IEnumerable<PollViewModel> models = polls.Select(x => new PollViewModel(x, this.pollExecutor));
+
+                return this.Json(models);
             }
             catch (Exception e)
             {
@@ -75,9 +82,11 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
         {
             try
             {
-                string polls = string.Join(Environment.NewLine, this.votingManager.GetFinishedPolls().Select(x => x.ToString()).ToList());
+                List<Poll> polls = this.votingManager.GetFinishedPolls();
 
-                return this.Ok(polls);
+                IEnumerable<PollViewModel> models = polls.Select(x => new PollViewModel(x, this.pollExecutor));
+
+                return this.Json(models);
             }
             catch (Exception e)
             {
@@ -92,9 +101,9 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
         {
             try
             {
-                string hashes = string.Join(Environment.NewLine, this.whitelistedHashesRepository.GetHashes().Select(x => x.ToString()).ToList());
+                IEnumerable<HashModel> hashes = this.whitelistedHashesRepository.GetHashes().Select(x => new HashModel() { Hash = x.ToString() });
 
-                return this.Ok(hashes);
+                return this.Json(hashes);
             }
             catch (Exception e)
             {
@@ -152,9 +161,11 @@ namespace Stratis.Bitcoin.Features.PoA.Voting
         {
             try
             {
-                List<string> votes = this.votingManager.GetScheduledVotes().Select(x => x.Key.ToString()).ToList();
+                List<VotingData> votes = this.votingManager.GetScheduledVotes();
 
-                return this.Json(votes);
+                IEnumerable<VotingDataModel> models = votes.Select(x => new VotingDataModel(x));
+
+                return this.Json(models);
             }
             catch (Exception e)
             {

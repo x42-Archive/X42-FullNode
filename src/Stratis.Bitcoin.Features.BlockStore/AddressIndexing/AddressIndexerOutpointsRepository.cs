@@ -9,15 +9,17 @@ using Stratis.Bitcoin.Utilities;
 namespace Stratis.Bitcoin.Features.BlockStore.AddressIndexing
 {
     /// <summary>Repository for <see cref="OutPointData"/> items with cache layer built in.</summary>
-    public class AddressIndexerOutpointsRepository : MemoryCache<string, OutPointData>
+    public sealed class AddressIndexerOutpointsRepository : MemoryCache<string, OutPointData>
     {
         private const string DbOutputsDataKey = "OutputsData";
 
         private const string DbOutputsRewindDataKey = "OutputsRewindData";
 
+        /// <summary>Represents the output collection.</summary>
         /// <remarks>Should be protected by <see cref="LockObject"/></remarks>
         private readonly LiteCollection<OutPointData> addressIndexerOutPointData;
 
+        /// <summary>Represents the rewind data collection.</summary>
         /// <remarks>Should be protected by <see cref="LockObject"/></remarks>
         private readonly LiteCollection<AddressIndexerRewindData> addressIndexerRewindData;
 
@@ -30,7 +32,6 @@ namespace Stratis.Bitcoin.Features.BlockStore.AddressIndexing
             this.logger = loggerFactory.CreateLogger(this.GetType().FullName);
             this.addressIndexerOutPointData = db.GetCollection<OutPointData>(DbOutputsDataKey);
             this.addressIndexerRewindData = db.GetCollection<AddressIndexerRewindData>(DbOutputsRewindDataKey);
-            this.addressIndexerRewindData.EnsureIndex("BlockHeightIndex", "$.BlockHeight", true);
             this.maxCacheItems = maxItems;
         }
 
@@ -111,36 +112,43 @@ namespace Stratis.Bitcoin.Features.BlockStore.AddressIndexing
             }
         }
 
-        /// <summary>Deletes rewind data originated at height lower than <paramref name="height"/>.</summary>
+        /// <summary>Deletes rewind data items that were originated at height lower than <paramref name="height"/>.</summary>
         /// <param name="height">The threshold below which data will be deleted.</param>
         public void PurgeOldRewindData(int height)
         {
             lock (this.LockObject)
             {
-                // Generally there will only be one result here at most, as this should be getting called once per block.
-                foreach (AddressIndexerRewindData rewindData in this.addressIndexerRewindData.Find(Query.LT("BlockHeightIndex", height)))
-                    this.addressIndexerRewindData.Delete(rewindData.BlockHash);
+                var itemsToPurge = this.addressIndexerRewindData.Find(x => x.BlockHeight < height).ToArray();
+
+                for (int i = 0; i < itemsToPurge.Count(); i++)
+                {
+                    this.addressIndexerRewindData.Delete(itemsToPurge[i].BlockHash);
+
+                    if (i % 100 == 0)
+                        this.logger.LogInformation("Purging {0}/{1} rewind data items.", i, itemsToPurge.Count());
+                }
             }
         }
 
-        /// <summary>Reverts changes made by processing a block with <param name="blockHash"> hash.</param></summary>
-        public void Rewind(uint256 blockHash)
+        /// <summary>Reverts changes made by processing blocks with height higher than <param name="height">.</param></summary>
+        /// <param name="height">The height above which to restore outpoints.</param>
+        public void RewindDataAboveHeight(int height)
         {
             lock (this.LockObject)
             {
-                AddressIndexerRewindData rewindData = this.addressIndexerRewindData.FindById(blockHash.ToString());
+                IEnumerable<AddressIndexerRewindData> toRestore = this.addressIndexerRewindData.Find(x => x.BlockHeight > height);
 
-                if (rewindData == null)
+                this.logger.LogDebug("Restoring data for {0} blocks.", toRestore.Count());
+
+                foreach (AddressIndexerRewindData rewindData in toRestore)
                 {
-                    this.logger.LogTrace("(-)[NOT_FOUND]");
-                    throw new Exception($"Rewind data not found for {blockHash}.");
+                    // Put the spent outputs back into the cache.
+                    foreach (OutPointData outPointData in rewindData.SpentOutputs)
+                        this.AddOutPointData(outPointData);
+
+                    // This rewind data item should now be removed from the collection.
+                    this.addressIndexerRewindData.Delete(rewindData.BlockHash);
                 }
-
-                // Put the spent outputs back into the cache.
-                foreach (OutPointData outPointData in rewindData.SpentOutputs)
-                    this.AddOutPointData(outPointData);
-
-                this.addressIndexerRewindData.Delete(rewindData.BlockHash);
             }
         }
 

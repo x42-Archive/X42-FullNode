@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -6,10 +7,13 @@ using Microsoft.Extensions.Logging;
 using NBitcoin;
 using NBitcoin.DataEncoders;
 using Stratis.Bitcoin.Base;
+using Stratis.Bitcoin.Base.Deployments;
+using Stratis.Bitcoin.Base.Deployments.Models;
 using Stratis.Bitcoin.Configuration;
 using Stratis.Bitcoin.Consensus;
 using Stratis.Bitcoin.Controllers;
 using Stratis.Bitcoin.Controllers.Models;
+using Stratis.Bitcoin.Features.Consensus;
 using Stratis.Bitcoin.Features.RPC.Exceptions;
 using Stratis.Bitcoin.Features.RPC.Models;
 using Stratis.Bitcoin.Interfaces;
@@ -22,6 +26,7 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
     /// <summary>
     /// A <see cref="FeatureController"/> that implements several RPC methods for the full node.
     /// </summary>
+    [ApiVersion("1")]
     public class FullNodeController : FeatureController
     {
         /// <summary>Instance logger.</summary>
@@ -45,6 +50,8 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
         /// <summary>A interface implementation for the initial block download state.</summary>
         private readonly IInitialBlockDownloadState ibdState;
 
+        private readonly IStakeChain stakeChain;
+
         public FullNodeController(
             ILoggerFactory loggerFactory,
             IPooledTransaction pooledTransaction = null,
@@ -59,7 +66,8 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
             Connection.IConnectionManager connectionManager = null,
             IConsensusManager consensusManager = null,
             IBlockStore blockStore = null,
-            IInitialBlockDownloadState ibdState = null)
+            IInitialBlockDownloadState ibdState = null,
+            IStakeChain stakeChain = null)
             : base(
                   fullNode: fullNode,
                   network: network,
@@ -76,6 +84,7 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
             this.networkDifficulty = networkDifficulty;
             this.blockStore = blockStore;
             this.ibdState = ibdState;
+            this.stakeChain = stakeChain;
         }
 
         /// <summary>
@@ -133,7 +142,7 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
             if (hash == null)
             {
                 // Look for the transaction in the mempool, and if not found, look in the indexed transactions.
-                trx = (this.pooledTransaction == null ? null : await this.pooledTransaction.GetTransaction(trxid)) ??
+                trx = (this.pooledTransaction == null ? null : await this.pooledTransaction.GetTransaction(trxid).ConfigureAwait(false)) ??
                       this.blockStore.GetTransactionById(trxid);
 
                 if (trx == null)
@@ -161,7 +170,7 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
 
             if (verbose != 0)
             {
-                ChainedHeader block = chainedHeaderBlock != null ? chainedHeaderBlock.ChainedHeader : await this.GetTransactionBlockAsync(trxid);
+                ChainedHeader block = chainedHeaderBlock != null ? chainedHeaderBlock.ChainedHeader : this.GetTransactionBlock(trxid);
                 return new TransactionVerboseModel(trx, this.Network, block, this.ChainState?.ConsensusTip);
             }
             else
@@ -204,19 +213,17 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
                 throw new ArgumentException(nameof(txid));
 
             UnspentOutputs unspentOutputs = null;
-            if (includeMemPool)
-            {
-                unspentOutputs = this.pooledGetUnspentTransaction != null ? await this.pooledGetUnspentTransaction.GetUnspentTransactionAsync(trxid).ConfigureAwait(false) : null;
-            }
-            else
-            {
-                unspentOutputs = this.getUnspentTransaction != null ? await this.getUnspentTransaction.GetUnspentTransactionAsync(trxid).ConfigureAwait(false) : null;
-            }
 
-            if (unspentOutputs == null)
-                return null;
+            if (includeMemPool && this.pooledGetUnspentTransaction != null)
+                unspentOutputs = await this.pooledGetUnspentTransaction.GetUnspentTransactionAsync(trxid).ConfigureAwait(false);
 
-            return new GetTxOutModel(unspentOutputs, vout, this.Network, this.ChainIndexer.Tip);
+            if (!includeMemPool && this.getUnspentTransaction != null)
+                unspentOutputs = await this.getUnspentTransaction.GetUnspentTransactionAsync(trxid).ConfigureAwait(false);
+
+            if (unspentOutputs != null)
+                return new GetTxOutModel(unspentOutputs, vout, this.Network, this.ChainIndexer.Tip);
+
+            return null;
         }
 
         /// <summary>
@@ -278,24 +285,18 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
 
             this.logger.LogDebug("RPC GetBlockHeader {0}", hash);
 
-            BlockHeaderModel model = null;
-            if (this.ChainIndexer != null)
-            {
-                BlockHeader blockHeader = this.ChainIndexer.GetHeader(uint256.Parse(hash))?.Header;
-                if (blockHeader != null)
-                {
-                    if (isJsonFormat)
-                    {
-                        return new BlockHeaderModel(blockHeader);
-                    }
-                    else
-                    {
-                        return new HexModel(blockHeader.ToHex(this.Network));
-                    }
-                }
-            }
+            if (this.ChainIndexer == null)
+                return null;
 
-            return null;
+            BlockHeader blockHeader = this.ChainIndexer.GetHeader(uint256.Parse(hash))?.Header;
+
+            if (blockHeader == null)
+                return null;
+
+            if (isJsonFormat)
+                return new BlockHeaderModel(blockHeader);
+
+            return new HexModel(blockHeader.ToHex(this.Network));
         }
 
         /// <summary>
@@ -340,7 +341,7 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
                     result.IsScript = true;
                 }
             }
-            catch(NotImplementedException)
+            catch (NotImplementedException)
             {
                 result.IsValid = false;
             }
@@ -366,14 +367,47 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
         /// <returns>The block according to format specified in <see cref="verbosity"/></returns>
         [ActionName("getblock")]
         [ActionDescription("Returns the block in hex, given a block hash.")]
-        public async Task<object> GetBlockAsync(string blockHash, int verbosity = 1)
+        public object GetBlock(string blockHash, int verbosity = 1)
         {
-            Block block = this.blockStore != null ? this.blockStore.GetBlock(uint256.Parse(blockHash)) : null;
+            uint256 blockId = uint256.Parse(blockHash);
+
+            // Does the block exist.
+            ChainedHeader chainedHeader = this.ChainIndexer.GetHeader(blockId);
+
+            if (chainedHeader == null)
+                return null;
+
+            Block block = chainedHeader.Block ?? this.blockStore?.GetBlock(blockId);
+
+            // In rare occasions a block that is found in the
+            // indexer may not have been pushed to the store yet. 
+            if (block == null)
+                return null;
 
             if (verbosity == 0)
-                return new HexModel(block?.ToHex(this.Network));
+                return new HexModel(block.ToHex(this.Network));
 
-            return new BlockModel(block, this.ChainIndexer.GetHeader(block.GetHash()), this.ChainIndexer.Tip, this.Network, verbosity);
+            var blockModel = new BlockModel(block, chainedHeader, this.ChainIndexer.Tip, this.Network, verbosity);
+
+            if (this.Network.Consensus.IsProofOfStake)
+            {
+                var posBlock = block as PosBlock;
+
+                blockModel.PosBlockSignature = posBlock.BlockSignature.ToHex(this.Network);
+                blockModel.PosBlockTrust = new Target(chainedHeader.GetBlockProof()).ToUInt256().ToString();
+                blockModel.PosChainTrust = chainedHeader.ChainWork.ToString(); // this should be similar to ChainWork
+
+                if (this.stakeChain != null)
+                {
+                    BlockStake blockStake = this.stakeChain.Get(blockId);
+
+                    blockModel.PosModifierv2 = blockStake?.StakeModifierV2.ToString();
+                    blockModel.PosFlags = blockStake?.Flags == BlockFlag.BLOCK_PROOF_OF_STAKE ? "proof-of-stake" : "proof-of-work";
+                    blockModel.PosHashProof = blockStake?.HashProof.ToString();
+                }
+            }
+
+            return blockModel;
         }
 
         [ActionName("getnetworkinfo")]
@@ -425,14 +459,72 @@ namespace Stratis.Bitcoin.Features.RPC.Controllers
                 blockchainInfo.VerificationProgress = (double)blockchainInfo.Blocks / blockchainInfo.Headers;
             }
 
+            // softfork deployments
+            blockchainInfo.SoftForks = new List<SoftForks>();
+
+            foreach (var consensusBuriedDeployment in Enum.GetValues(typeof(BuriedDeployments)))
+            {
+                bool active = this.ChainIndexer.Height >= this.Network.Consensus.BuriedDeployments[(BuriedDeployments) consensusBuriedDeployment];
+                blockchainInfo.SoftForks.Add(new SoftForks
+                {
+                    Id = consensusBuriedDeployment.ToString().ToLower(),
+                    Version = (int)consensusBuriedDeployment + 2, // hack to get the deployment number similar to bitcoin core without changing the enums
+                    Status = new SoftForksStatus {Status = active}
+                });
+            }
+
+            // softforkbip9 deployments
+            blockchainInfo.SoftForksBip9 = new Dictionary<string, SoftForksBip9>();
+
+            ConsensusRuleEngine ruleEngine = (ConsensusRuleEngine)this.ConsensusManager.ConsensusRules;
+            ThresholdState[] thresholdStates = ruleEngine.NodeDeployments.BIP9.GetStates(this.ChainIndexer.Tip.Previous);
+            List<ThresholdStateModel> metrics = ruleEngine.NodeDeployments.BIP9.GetThresholdStateMetrics(this.ChainIndexer.Tip.Previous, thresholdStates);
+
+            foreach (ThresholdStateModel metric in metrics.Where(m => !m.DeploymentName.ToLower().Contains("test"))) // to remove the test dummy 
+            {
+                // TODO: Deployment timeout may not be implemented yet
+
+                // Deployments with timeout value of 0 are hidden.
+                // A timeout value of 0 guarantees a softfork will never be activated.
+                // This is used when softfork codes are merged without specifying the deployment schedule.
+                if (metric.TimeTimeOut?.Ticks > 0)
+                    blockchainInfo.SoftForksBip9.Add(metric.DeploymentName, this.CreateSoftForksBip9(metric, thresholdStates[metric.DeploymentIndex]));
+            }
+            
+            // TODO: Implement blockchainInfo.warnings
             return blockchainInfo;
         }
 
-        private async Task<ChainedHeader> GetTransactionBlockAsync(uint256 trxid)
+        private SoftForksBip9 CreateSoftForksBip9(ThresholdStateModel metric, ThresholdState state)
+        {
+            var softForksBip9 = new SoftForksBip9()
+            {
+                Status = metric.ThresholdState.ToLower(),
+                Bit = this.Network.Consensus.BIP9Deployments[metric.DeploymentIndex].Bit,
+                StartTime = metric.TimeStart?.ToUnixTimestamp() ?? 0,
+                Timeout = metric.TimeTimeOut?.ToUnixTimestamp() ?? 0,
+                Since = metric.SinceHeight
+            };
+
+            if (state == ThresholdState.Started)
+            {
+                softForksBip9.Statistics = new SoftForksBip9Statistics();
+
+                softForksBip9.Statistics.Period = metric.ConfirmationPeriod;
+                softForksBip9.Statistics.Threshold = metric.Threshold;
+                softForksBip9.Statistics.Count = metric.Blocks;
+                softForksBip9.Statistics.Elapsed = metric.Height - metric.PeriodStartHeight;
+                softForksBip9.Statistics.Possible = (softForksBip9.Statistics.Period - softForksBip9.Statistics.Threshold) >= (softForksBip9.Statistics.Elapsed - softForksBip9.Statistics.Count);
+            }
+
+            return softForksBip9;
+        }
+
+        private ChainedHeader GetTransactionBlock(uint256 trxid)
         {
             ChainedHeader block = null;
 
-            uint256 blockid = this.blockStore != null ? this.blockStore.GetBlockIdByTransactionId(trxid) : null;
+            uint256 blockid = this.blockStore?.GetBlockIdByTransactionId(trxid);
             if (blockid != null)
                 block = this.ChainIndexer?.GetHeader(blockid);
 

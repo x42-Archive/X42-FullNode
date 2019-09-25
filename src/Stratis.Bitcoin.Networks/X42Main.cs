@@ -4,6 +4,9 @@ using System.Linq;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.DataEncoders;
+using Stratis.Bitcoin.Features.Consensus.Rules.CommonRules;
+using Stratis.Bitcoin.Features.Consensus.Rules.ProvenHeaderRules;
+using Stratis.Bitcoin.Features.MemoryPool.Rules;
 using Stratis.Bitcoin.Networks.Deployments;
 using Stratis.Bitcoin.Networks.Policies;
 
@@ -82,7 +85,7 @@ namespace Stratis.Bitcoin.Networks
 
             var bip9Deployments = new StratisBIP9Deployments()
             {
-                [StratisBIP9Deployments.ColdStaking] = new BIP9DeploymentsParameters(2,
+                [StratisBIP9Deployments.ColdStaking] = new BIP9DeploymentsParameters("ColdStaking", 2,
                     new DateTime(2018, 12, 1, 0, 0, 0, DateTimeKind.Utc),
                     new DateTime(2019, 12, 1, 0, 0, 0, DateTimeKind.Utc))
             };
@@ -168,6 +171,73 @@ namespace Stratis.Bitcoin.Networks
 
             Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x04ffe583707a96c1c2eb54af33a4b1dc6d9d8e09fea8c9a7b097ba88f0cb64c4"));
             Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x6e3439a32382f83dee4f94a6f8bdd38908bcf0c82ec09aba85c5321357f01f67"));
+
+            this.RegisterRules(this.Consensus);
+            this.RegisterMempoolRules(this.Consensus);
+        }
+
+        protected void RegisterRules(IConsensus consensus)
+        {
+            consensus.ConsensusRules
+                .Register<HeaderTimeChecksRule>()
+                .Register<HeaderTimeChecksPosRule>()
+                .Register<StratisBugFixPosFutureDriftRule>()
+                .Register<CheckDifficultyPosRule>()
+                .Register<StratisHeaderVersionRule>()
+                .Register<ProvenHeaderSizeRule>()
+                .Register<ProvenHeaderCoinstakeRule>();
+
+            consensus.ConsensusRules
+                .Register<BlockMerkleRootRule>()
+                .Register<PosBlockSignatureRepresentationRule>()
+                .Register<PosBlockSignatureRule>();
+
+            consensus.ConsensusRules
+                .Register<SetActivationDeploymentsPartialValidationRule>()
+                .Register<PosTimeMaskRule>()
+
+                // rules that are inside the method ContextualCheckBlock
+                .Register<TransactionLocktimeActivationRule>()
+                .Register<CoinbaseHeightActivationRule>()
+                .Register<WitnessCommitmentsRule>()
+                .Register<BlockSizeRule>()
+
+                // rules that are inside the method CheckBlock
+                .Register<EnsureCoinbaseRule>()
+                .Register<CheckPowTransactionRule>()
+                .Register<CheckPosTransactionRule>()
+                .Register<CheckSigOpsRule>()
+                .Register<PosCoinstakeRule>();
+
+            consensus.ConsensusRules
+                .Register<SetActivationDeploymentsFullValidationRule>()
+
+                .Register<CheckDifficultyHybridRule>()
+
+                // rules that require the store to be loaded (coinview)
+                .Register<LoadCoinviewRule>()
+                .Register<TransactionDuplicationActivationRule>()
+                .Register<PosCoinviewRule>() // implements BIP68, MaxSigOps and BlockReward calculation
+                                             // Place the PosColdStakingRule after the PosCoinviewRule to ensure that all input scripts have been evaluated
+                                             // and that the "IsColdCoinStake" flag would have been set by the OP_CHECKCOLDSTAKEVERIFY opcode if applicable.
+                .Register<PosColdStakingRule>()
+                .Register<SaveCoinviewRule>();
+        }
+
+        protected void RegisterMempoolRules(IConsensus consensus)
+        {
+            consensus.MempoolRules = new List<Type>()
+            {
+                typeof(CheckConflictsMempoolRule),
+                typeof(CheckCoinViewMempoolRule),
+                typeof(CreateMempoolEntryMempoolRule),
+                typeof(CheckSigOpsMempoolRule),
+                typeof(CheckFeeMempoolRule),
+                typeof(CheckRateLimitMempoolRule),
+                typeof(CheckAncestorsMempoolRule),
+                typeof(CheckReplacementMempoolRule),
+                typeof(CheckAllInputsMempoolRule)
+            };
         }
 
         protected static Block CreateX42GenesisBlock(ConsensusFactory consensusFactory, uint nTime, uint nNonce, uint nBits, int nVersion, Money genesisReward)

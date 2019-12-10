@@ -5,10 +5,8 @@ using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.DataEncoders;
 using NBitcoin.Protocol;
-using NBitcoin.Rules;
 using Stratis.Bitcoin.Features.Consensus.Rules.CommonRules;
 using Stratis.Bitcoin.Features.Consensus.Rules.ProvenHeaderRules;
-using Stratis.Bitcoin.Features.MemoryPool.Interfaces;
 using Stratis.Bitcoin.Features.MemoryPool.Rules;
 using Stratis.Bitcoin.Networks.Deployments;
 using Stratis.Bitcoin.Networks.Policies;
@@ -93,7 +91,8 @@ namespace Stratis.Bitcoin.Networks
             {
                 [StratisBIP9Deployments.ColdStaking] = new BIP9DeploymentsParameters("ColdStaking", 2,
                     new DateTime(2018, 12, 1, 0, 0, 0, DateTimeKind.Utc),
-                    new DateTime(2019, 12, 1, 0, 0, 0, DateTimeKind.Utc))
+                    new DateTime(2019, 12, 1, 0, 0, 0, DateTimeKind.Utc),
+                    BIP9DeploymentsParameters.DefaultMainnetThreshold)
             };
 
             this.Consensus = new NBitcoin.Consensus(
@@ -108,7 +107,6 @@ namespace Stratis.Bitcoin.Networks
                 buriedDeployments: buriedDeployments,
                 bip9Deployments: bip9Deployments,
                 bip34Hash: new uint256("0x000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8"),
-                ruleChangeActivationThreshold: 1916, // 95% of 2016
                 minerConfirmationWindow: 2016, // nPowTargetTimespan / nPowTargetSpacing
                 maxReorgLength: 500,
                 defaultAssumeValid: new uint256("0x50497017e7bb256df205fcbc2caccbe5b516cb33491e1a11737a3bfe83959b9f"), // 1213518
@@ -240,7 +238,7 @@ namespace Stratis.Bitcoin.Networks
             consensus.ConsensusRules
                 .Register<SetActivationDeploymentsPartialValidationRule>()
                 .Register<PosTimeMaskRule>()
-                
+
                 // rules that are inside the method ContextualCheckBlock
                 .Register<TransactionLocktimeActivationRule>()
                 .Register<CoinbaseHeightActivationRule>()
@@ -263,8 +261,8 @@ namespace Stratis.Bitcoin.Networks
                 .Register<LoadCoinviewRule>()
                 .Register<TransactionDuplicationActivationRule>()
                 .Register<PosCoinviewRule>() // implements BIP68, MaxSigOps and BlockReward calculation
-                // Place the PosColdStakingRule after the PosCoinviewRule to ensure that all input scripts have been evaluated
-                // and that the "IsColdCoinStake" flag would have been set by the OP_CHECKCOLDSTAKEVERIFY opcode if applicable.
+                                             // Place the PosColdStakingRule after the PosCoinviewRule to ensure that all input scripts have been evaluated
+                                             // and that the "IsColdCoinStake" flag would have been set by the OP_CHECKCOLDSTAKEVERIFY opcode if applicable.
                 .Register<PosColdStakingRule>()
                 .Register<SaveCoinviewRule>();
         }
@@ -281,7 +279,8 @@ namespace Stratis.Bitcoin.Networks
                 typeof(CheckRateLimitMempoolRule),
                 typeof(CheckAncestorsMempoolRule),
                 typeof(CheckReplacementMempoolRule),
-                typeof(CheckAllInputsMempoolRule)
+                typeof(CheckAllInputsMempoolRule),
+                typeof(CheckTxOutDustRule)
             };
         }
 

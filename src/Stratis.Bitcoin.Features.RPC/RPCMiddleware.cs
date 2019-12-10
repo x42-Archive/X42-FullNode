@@ -12,6 +12,8 @@ using NBitcoin.DataEncoders;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Stratis.Bitcoin.Configuration;
+using Stratis.Bitcoin.Consensus;
+using Stratis.Bitcoin.Features.Consensus;
 using Stratis.Bitcoin.Features.RPC.Exceptions;
 using Stratis.Bitcoin.Utilities;
 using TracerAttributes;
@@ -107,14 +109,21 @@ namespace Stratis.Bitcoin.Features.RPC
             request.EnableRewind();
 
             // Read the request.
+            var builder = new StringBuilder();
             byte[] requestBuffer = new byte[request.ContentLength.Value];
-            await request.Body.ReadAsync(requestBuffer, 0, requestBuffer.Length).ConfigureAwait(false);
 
-            string requestBody = Encoding.UTF8.GetString(requestBuffer);
+            while (true)
+            {
+                var remainingBytesCount = await request.Body.ReadAsync(requestBuffer, 0, requestBuffer.Length).ConfigureAwait(false);
+                if (remainingBytesCount == 0) break;
+
+                var encodedString = Encoding.UTF8.GetString(requestBuffer, 0, remainingBytesCount);
+                builder.Append(encodedString);
+            }
 
             request.Body.Position = 0;
 
-            return requestBody;
+            return builder.ToString();
         }
 
         private async Task HandleRpcInvokeExceptionAsync(HttpContext httpContext, Exception ex)
@@ -122,6 +131,12 @@ namespace Stratis.Bitcoin.Features.RPC
             if (ex is ArgumentException || ex is FormatException)
             {
                 JObject response = CreateError(RPCErrorCode.RPC_MISC_ERROR, "Argument error: " + ex.Message);
+                httpContext.Response.ContentType = ContentType;
+                await httpContext.Response.WriteAsync(response.ToString(Formatting.Indented));
+            }
+            else if (ex is BlockNotFoundException)
+            {
+                JObject response = CreateError(RPCErrorCode.RPC_INVALID_REQUEST, "Argument error: " + ex.Message);
                 httpContext.Response.ContentType = ContentType;
                 await httpContext.Response.WriteAsync(response.ToString(Formatting.Indented));
             }
@@ -217,9 +232,11 @@ namespace Stratis.Bitcoin.Features.RPC
                     throw new Exception("Method not found");
 
                 responseMemoryStream.Position = 0;
-                using (StreamReader streamReader = new StreamReader(responseMemoryStream))
-                using (JsonTextReader textReader = new JsonTextReader(streamReader))
+                using (var streamReader = new StreamReader(responseMemoryStream))
+                using (var textReader = new JsonTextReader(streamReader))
                 {
+                    // Ensure floats are parsed as decimals and not as doubles.
+                    textReader.FloatParseHandling = FloatParseHandling.Decimal;
                     response = await JObject.LoadAsync(textReader);
                 }
             }
@@ -228,9 +245,12 @@ namespace Stratis.Bitcoin.Features.RPC
                 await this.HandleRpcInvokeExceptionAsync(context, ex);
 
                 context.Response.Body.Position = 0;
-                using (StreamReader streamReader = new StreamReader(context.Response.Body, Encoding.Default, true, 1024, true))
-                using (JsonTextReader textReader = new JsonTextReader(streamReader))
+                using (var streamReader = new StreamReader(context.Response.Body, Encoding.Default, true, 1024, true))
+                using (var textReader = new JsonTextReader(streamReader))
                 {
+                    // Ensure floats are parsed as decimals and not as doubles.
+                    textReader.FloatParseHandling = FloatParseHandling.Decimal;
+
                     string val = streamReader.ReadToEnd();
                     context.Response.Body.Position = 0;
                     response = await JObject.LoadAsync(textReader);

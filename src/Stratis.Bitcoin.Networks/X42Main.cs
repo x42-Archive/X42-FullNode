@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Net;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.DataEncoders;
+using NBitcoin.Protocol;
 using Stratis.Bitcoin.Features.Consensus.Rules.CommonRules;
 using Stratis.Bitcoin.Features.Consensus.Rules.ProvenHeaderRules;
 using Stratis.Bitcoin.Features.MemoryPool.Rules;
@@ -55,6 +56,7 @@ namespace Stratis.Bitcoin.Networks
             this.DefaultConfigFilename = x42DefaultConfigFilename;
             this.MaxTimeOffsetSeconds = 25 * 60;
             this.CoinTicker = "x42";
+            this.DefaultBanTimeSeconds = 16000; // 500 (MaxReorg) * 64 (TargetSpacing) / 2 = 4 hours, 26 minutes and 40 seconds
 
             var consensusFactory = new PosConsensusFactory();
 
@@ -104,10 +106,9 @@ namespace Stratis.Bitcoin.Networks
                 buriedDeployments: buriedDeployments,
                 bip9Deployments: bip9Deployments,
                 bip34Hash: new uint256("0x000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8"),
-                ruleChangeActivationThreshold: 1916, // 95% of 2016
                 minerConfirmationWindow: 2016, // nPowTargetTimespan / nPowTargetSpacing
                 maxReorgLength: 500,
-                defaultAssumeValid: null,
+                defaultAssumeValid: new uint256("24f78aa61fd87545356e570740e9f3018f7a27b9004cc89d083ca302646f6210"), // 630000
                 maxMoney: Money.Coins(42 * 1000000),
                 coinbaseMaturity: 50,
                 premineHeight: 2,
@@ -151,7 +152,8 @@ namespace Stratis.Bitcoin.Networks
                 { 20000, new CheckpointInfo(new uint256("0x79976dfc025e982239a0bd62099475e6abf839c73aba5805b5cbe4091744c09a"), new uint256("0x250690dd6f264565c5ce16d84d250d67eb940d084c253e4006cdba3091fd66b6")) },
                 { 200000, new CheckpointInfo(new uint256("0xaa276a1c51c025ff1a21fd4b07bfa5d55effc173840e054dd851b20dbb1f2f17"), new uint256("0x63d4bc7b0272703e94ae79103970ea324dc85221e88a51c39a170744848c0cc7")) },
                 { 300000, new CheckpointInfo(new uint256("0xff72e73ee8f87c0de9bf82c3bb758f4905c3e005493f2ed1faede7c120961750"), new uint256("0x2097fc9edfb8dfe287db45bbce820e168c50be32c9840b1cddf56b297011fc69")) },
-                { 500000, new CheckpointInfo(new uint256("0x7f9a88ebb32f47090ec37a110c5a05c1162a604dfbfb69c8d492e771cdb63289"), new uint256("0x19db6890c5c934e883bc99eb197509b0a81f19faeefcf49fd7fa6dab83644bfb")) }
+                { 500000, new CheckpointInfo(new uint256("0x7f9a88ebb32f47090ec37a110c5a05c1162a604dfbfb69c8d492e771cdb63289"), new uint256("0x19db6890c5c934e883bc99eb197509b0a81f19faeefcf49fd7fa6dab83644bfb")) },
+                { 634600, new CheckpointInfo(new uint256("0x5c0eb47bc96ba437e6d2550aceaa73ad9a4568110de83380d6a7b5f00aee7308"), new uint256("0x12ef7b665a07cef572c9b8d9ee44f41230d6a65e960d372f9396194ed6f51e53")) }
             };
 
             var encoder = new Bech32Encoder("bc");
@@ -166,11 +168,17 @@ namespace Stratis.Bitcoin.Networks
                 new DNSSeedData("tech.x42.cloud", "tech.x42.cloud"),
             };
 
-            string[] seedNodes = { "34.255.35.42", "52.211.235.48", "52.210.106.220" };
-            this.SeedNodes = ConvertToNetworkAddresses(seedNodes, this.DefaultPort).ToList();
+            this.SeedNodes = new List<NetworkAddress>
+            {
+                new NetworkAddress(IPAddress.Parse("34.255.35.42"), 16178),
+                new NetworkAddress(IPAddress.Parse("52.211.235.48"), 16178),
+                new NetworkAddress(IPAddress.Parse("63.32.82.169"), 16178),
+            };
 
             this.StandardScriptsRegistry = new StratisStandardScriptsRegistry();
 
+            // 64 below should be changed to TargetSpacingSeconds when we move that field.
+            Assert(this.DefaultBanTimeSeconds <= this.Consensus.MaxReorgLength * 64 / 2);
             Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x04ffe583707a96c1c2eb54af33a4b1dc6d9d8e09fea8c9a7b097ba88f0cb64c4"));
             Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x6e3439a32382f83dee4f94a6f8bdd38908bcf0c82ec09aba85c5321357f01f67"));
 
@@ -238,7 +246,8 @@ namespace Stratis.Bitcoin.Networks
                 typeof(CheckRateLimitMempoolRule),
                 typeof(CheckAncestorsMempoolRule),
                 typeof(CheckReplacementMempoolRule),
-                typeof(CheckAllInputsMempoolRule)
+                typeof(CheckAllInputsMempoolRule),
+                typeof(CheckTxOutDustRule)
             };
         }
 

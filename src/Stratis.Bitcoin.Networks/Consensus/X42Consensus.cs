@@ -134,7 +134,6 @@ namespace Stratis.Bitcoin.Networks
             BuriedDeploymentsArray buriedDeployments,
             IBIP9DeploymentsArray bip9Deployments,
             uint256 bip34Hash,
-            int ruleChangeActivationThreshold,
             int minerConfirmationWindow,
             uint maxReorgLength,
             uint256 defaultAssumeValid,
@@ -187,7 +186,6 @@ namespace Stratis.Bitcoin.Networks
             this.HashGenesisBlock = hashGenesisBlock;
             this.MinimumChainWork = minimumChainWork;
             this.MinerConfirmationWindow = minerConfirmationWindow;
-            this.RuleChangeActivationThreshold = ruleChangeActivationThreshold;
             this.CoinType = coinType;
             this.ProofOfStakeLimitV2 = proofOfStakeLimitV2;
             this.LastPOWBlock = lastPowBlock;

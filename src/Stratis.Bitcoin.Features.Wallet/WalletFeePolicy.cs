@@ -34,6 +34,11 @@ namespace Stratis.Bitcoin.Features.Wallet
         private readonly FeeRate minRelayTxFee;
 
         /// <summary>
+        /// Min Data Store Fee
+        /// </summary>
+        private readonly FeeRate minDataStoreFee;
+
+        /// <summary>
         /// Constructs a wallet fee policy.
         /// </summary>
         /// <param name="nodeSettings">Settings for the the node.</param>
@@ -44,6 +49,7 @@ namespace Stratis.Bitcoin.Features.Wallet
             this.payTxFee = new FeeRate(0);
             this.maxTxFee = new Money(0.1M, MoneyUnit.BTC);
             this.minRelayTxFee = nodeSettings.MinRelayTxFeeRate;
+            this.minDataStoreFee = nodeSettings.MinDataStoreFeeRate;
         }
 
         /// <inheritdoc />
@@ -69,6 +75,12 @@ namespace Stratis.Bitcoin.Features.Wallet
         {
             // payTxFee is the user-set global for desired feerate
             return this.GetMinimumFee(txBytes, confirmTarget, this.payTxFee.GetFee(txBytes));
+        }
+
+        /// <inheritdoc />
+        public Money GetRequiredDataStoreFee(int txBytes)
+        {
+            return this.minDataStoreFee.GetFee(txBytes);
         }
 
         /// <inheritdoc />

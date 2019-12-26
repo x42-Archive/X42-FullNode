@@ -108,6 +108,9 @@ namespace Stratis.Bitcoin.Configuration
         /// is met. For this reason, the minimum relay transaction fee is usually lower than the minimum fee.
         /// </summary>
         public FeeRate MinRelayTxFeeRate { get; private set; }
+
+        /// <summary>The minimum fee for a kB of transactions on the node.</summary>
+        public FeeRate MinDataStoreFeeRate { get; private set; }
         
         /// <summary>
         /// If true then the node will add and start the SignalR feature.
@@ -317,6 +320,7 @@ namespace Stratis.Bitcoin.Configuration
             this.MinTxFeeRate = new FeeRate(config.GetOrDefault("mintxfee", this.Network.MinTxFee, this.Logger));
             this.FallbackTxFeeRate = new FeeRate(config.GetOrDefault("fallbackfee", this.Network.FallbackFee, this.Logger));
             this.MinRelayTxFeeRate = new FeeRate(config.GetOrDefault("minrelaytxfee", this.Network.MinRelayTxFee, this.Logger));
+            this.MinDataStoreFeeRate = new FeeRate(config.GetOrDefault("mindatastorefee", this.Network.MinDataStoreFee, this.Logger));
         }
 
         /// <summary>
@@ -395,6 +399,7 @@ namespace Stratis.Bitcoin.Configuration
             builder.AppendLine($"-mintxfee=<number>        Minimum fee rate. Defaults to {network.MinTxFee}.");
             builder.AppendLine($"-fallbackfee=<number>     Fallback fee rate. Defaults to {network.FallbackFee}.");
             builder.AppendLine($"-minrelaytxfee=<number>   Minimum relay fee rate. Defaults to {network.MinRelayTxFee}.");
+            builder.AppendLine($"-mindatastorefee=<number> Minimum fee for data store. Defaults to {network.MinDataStoreFee}.");
 
             defaults.Logger.LogInformation(builder.ToString());
 
@@ -419,6 +424,8 @@ namespace Stratis.Bitcoin.Configuration
             builder.AppendLine($"#fallbackfee={network.FallbackFee}");
             builder.AppendLine($"#Minimum relay fee rate. Defaults to {network.MinRelayTxFee}.");
             builder.AppendLine($"#minrelaytxfee={network.MinRelayTxFee}");
+            builder.AppendLine($"#Minimum data fee rate. Defaults to {network.MinDataStoreFee}.");
+            builder.AppendLine($"#mindatastorefee={network.MinDataStoreFee}");
             builder.AppendLine();
 
             ConnectionManagerSettings.BuildDefaultConfigurationFile(builder, network);

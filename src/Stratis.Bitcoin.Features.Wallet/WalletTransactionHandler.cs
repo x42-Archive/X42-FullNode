@@ -388,6 +388,12 @@ namespace Stratis.Bitcoin.Features.Wallet
             Money fee;
             Money minTrxFee = new Money(this.network.MinTxFee, MoneyUnit.Satoshi);
 
+            // Additional fee for OpReturnData
+            if (!string.IsNullOrEmpty(context.OpReturnData))
+            {
+                //minTrxFee = Math.Max(minTrxFee, new Money(this.network.MinDataStoreFee, MoneyUnit.Satoshi));
+            }
+
             // If the fee hasn't been set manually, calculate it based on the fee type that was chosen.
             if (context.TransactionFee == null)
             {

@@ -14,6 +14,8 @@ namespace Stratis.Bitcoin.Features.Wallet.Interfaces
 
         Money GetMinimumFee(int txBytes, int confirmTarget, Money targetFee);
 
+        Money GetRequiredDataStoreFee(int txBytes);
+
         FeeRate GetFeeRate(int confirmTarget);
     }
 }

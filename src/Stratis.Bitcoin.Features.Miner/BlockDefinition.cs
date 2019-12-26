@@ -384,8 +384,11 @@ namespace Stratis.Bitcoin.Features.Miner
                     packageSigOpsCost = modit.SigOpCostWithAncestors;
                 }
 
+                int opReturnCount = iter.Transaction.Outputs.Select(o => o.ScriptPubKey.ToBytes(true)).Count(b => IsOpReturn(b));
+
                 // When there are zero fee's we want to still include the transaction.
-                if (this.Network.MinRelayTxFee > Money.Zero)
+                // If there is OP_RETURN data, we will want to make sure there is a fee.
+                if (this.Network.MinTxFee > Money.Zero || opReturnCount > 0)
                 {
                     if (packageFees < this.BlockMinFeeRate.GetFee((int)packageSize))
                     {
@@ -590,5 +593,11 @@ namespace Stratis.Bitcoin.Features.Miner
 
         /// <summary>Network specific logic specific as to how the block's header will be set.</summary>
         public abstract void UpdateHeaders();
+
+        public static bool IsOpReturn(byte[] bytes)
+        {
+            return bytes.Length > 0 && bytes[0] == (byte)OpcodeType.OP_RETURN;
+        }
+
     }
 }

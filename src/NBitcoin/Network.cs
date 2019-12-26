@@ -112,6 +112,11 @@ namespace NBitcoin
         public long MinRelayTxFee { get; protected set; }
 
         /// <summary>
+        /// A fee rate that will be used when adding data to a block.
+        /// </summary>
+        public long MinDataStoreFee { get; protected set; }
+
+        /// <summary>
         /// Port on which to listen for incoming RPC connections.
         /// </summary>
         public int DefaultRPCPort { get; protected set; }

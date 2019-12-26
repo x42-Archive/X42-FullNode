@@ -52,6 +52,7 @@ namespace Stratis.Bitcoin.Networks
             this.MinTxFee = Money.Zero;
             this.FallbackFee = Money.Zero;
             this.MinRelayTxFee = Money.Zero;
+            this.MinDataStoreFee = 10000;
             this.RootFolderName = x42RootFolderName;
             this.DefaultConfigFilename = x42DefaultConfigFilename;
             this.MaxTimeOffsetSeconds = 25 * 60;

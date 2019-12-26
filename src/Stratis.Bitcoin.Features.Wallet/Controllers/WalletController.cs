@@ -1625,6 +1625,12 @@ namespace Stratis.Bitcoin.Features.Wallet.Controllers
                             // Due to how the code works the line below is probably never used.
                             var transactionSize = transaction.GetSerializedSize();
                             transactionFee = new FeeRate(this.network.MinTxFee).GetFee(transactionSize);
+
+                            // Additional Fee for OpReturnData
+                            if (!string.IsNullOrEmpty(context.OpReturnData))
+                            {
+                                transactionFee = new FeeRate(Math.Max(this.network.MinTxFee, this.network.MinDataStoreFee)).GetFee(transactionSize);
+                            }
                         }
                         catch (NotEnoughFundsException ex)
                         {

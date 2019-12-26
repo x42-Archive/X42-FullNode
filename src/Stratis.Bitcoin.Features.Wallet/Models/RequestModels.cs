@@ -280,7 +280,7 @@ namespace Stratis.Bitcoin.Features.Wallet.Models
     public class WalletName : RequestModel
     {
 
-        [Required(ErrorMessage = "The name of the wallet is missing.")]
+        //[Required(ErrorMessage = "The name of the wallet is missing.")]
         public string Name { get; set; }
     }
 

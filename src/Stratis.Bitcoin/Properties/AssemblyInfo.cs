@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("x42")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("x42")]
 [assembly: AssemblyProduct("x42")]
 [assembly: AssemblyCopyright("Copyright © 2018 - 2019")]
 [assembly: AssemblyTrademark("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("a6c18cae-7246-41b1-bfd6-c54ba1694ac2")]
+[assembly: Guid("05546795-b262-4711-bdf9-06cf07e94f8a")]
 
 // Version information for an assembly consists of the following four values:
 //
@@ -32,6 +32,6 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.2.21.0")]
-[assembly: AssemblyFileVersion("1.2.21.0")]
+[assembly: AssemblyVersion("1.2.22.0")]
+[assembly: AssemblyFileVersion("1.2.22.0")]
 [assembly: InternalsVisibleTo("x42.Tests")]

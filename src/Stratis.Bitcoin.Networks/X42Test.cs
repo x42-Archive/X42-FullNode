@@ -47,7 +47,7 @@ namespace Stratis.Bitcoin.Networks
             var consensusFactory = new PosConsensusFactory();
 
             // Create the testnet genesis block.
-            this.GenesisTime = 1554001068;
+            this.GenesisTime = 1588635707;
             this.GenesisNonce = 2433759;
             this.GenesisBits = powLimit;
             this.GenesisVersion = 1;
@@ -122,7 +122,7 @@ namespace Stratis.Bitcoin.Networks
 
             this.Checkpoints = new Dictionary<int, CheckpointInfo>
             {
-                { 0, new CheckpointInfo(new uint256("0x6e7c625f36755963d0704dda57fce762c9baf29ea53d7c699e132da614e18d28"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
+                { 0, new CheckpointInfo(new uint256("0x11bd504102b42b24680d7b4f9b9e9521adc1b690253494d108193cdfcdd2ef0b"), new uint256("0x0000000000000000000000000000000000000000000000000000000000000000")) }, // Genisis
             };
 
             var encoder = new Bech32Encoder("bc");
@@ -140,8 +140,8 @@ namespace Stratis.Bitcoin.Networks
 
             this.StandardScriptsRegistry = new StratisStandardScriptsRegistry();
 
-            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x6e7c625f36755963d0704dda57fce762c9baf29ea53d7c699e132da614e18d28"));
-            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x7a466c6b14e6b6fbb9003a1eaa03b431a1b88ebde7796cb6c819e6436337b565"));
+            Assert(this.Consensus.HashGenesisBlock == uint256.Parse("0x11bd504102b42b24680d7b4f9b9e9521adc1b690253494d108193cdfcdd2ef0b"));
+            Assert(this.Genesis.Header.HashMerkleRoot == uint256.Parse("0x87e7f7df2fbe9fa56c627e59342e0d8142eb5e44c5e5769609059a60f17d0702"));
 
             this.RegisterRules(this.Consensus);
             this.RegisterMempoolRules(this.Consensus);

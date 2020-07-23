@@ -114,3 +114,28 @@ To skip a build, for example if you've made very minor changes, include the text
 
 If you want get the :sparkles: latest :sparkles: (and unstable :bomb:) version of the nuget packages here: 
 * [x42.Bitcoin](https://ci.appveyor.com/api/projects/x42/x42bitcoinfullnode/artifacts/nuget/x42.Bitcoin.1.0.7-alpha.nupkg?job=Configuration%3A%20Release)
+
+Ubuntu 19+ issue
+----------------
+
+When running x42.x42D on Ubuntu 19+, you'll get an error, because of library version mismatch.
+This seems to be a compatibility problem with dotnet2.0 and the later Ubuntu versions.
+The workaround for this problem is to manually download the libssl1.0, and point the lib directory before running x42.x42D
+
+You can download libssl1.0 from [here](http://packages.linuxmint.com/pool/upstream/o/openssl/libssl1.0.0_1.0.1j-1_amd64.deb).
+After that, extract (not install) the package, and point the location:
+
+```bash
+cd /home/user/Download
+ar x libssl1.0.0_1.0.1j-1_amd64.deb
+tar xf data.tar.xz
+```
+Now you can move the lib directory somewhere more convenient:
+```bash
+mv usr/lib/x86_64-linux-gnu ~/.local/lib/libssl1.0
+```
+And start the daemon:
+```bash
+LD_LIBRARY_PATH=/home/user/.local/lib/libssl1.0 /opt/x42\ Core/resources/daemon/x42.x42D
+```
+Now you should have the x42 daemon running.
